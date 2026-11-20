@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Sentia" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/ink</item>
+        <item name="colorOnPrimary">@color/on_ink</item>
+        <item name="colorSecondary">@color/ink</item>
+        <item name="colorOnSecondary">@color/on_ink</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="colorOnSurface">@color/ink</item>
+        <item name="colorSurfaceVariant">@color/nude</item>
+        <item name="colorOnSurfaceVariant">@color/ink_muted</item>
+        <item name="colorOutline">@color/line</item>
+        <item name="colorControlActivated">@color/ink</item>
+        <item name="android:colorBackground">@color/surface</item>
+        <item name="android:windowBackground">@color/surface</item>
+        <item name="android:statusBarColor">@color/surface</item>
+        <item name="android:navigationBarColor">@color/surface</item>
+        <item name="android:textColorPrimary">@color/ink</item>
+        <item name="android:textColorSecondary">@color/ink_muted</item>
+        <item name="android:textColorHint">@color/ink_faint</item>
+        <item name="android:fontFamily">@font/hind_siliguri</item>
+        <item name="fontFamily">@font/hind_siliguri</item>
+        <item name="bottomSheetDialogTheme">@style/Sentia.BottomSheetDialog</item>
+        <item name="materialAlertDialogTheme">@style/Sentia.AlertDialog</item>
+    </style>
+
+    <style name="Sentia.AlertDialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="colorSurface">@color/surface</item>
+        <item name="shapeAppearanceOverlay">@style/Sentia.DialogShape</item>
+    </style>
+
+    <style name="Sentia.DialogShape" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">20dp</item>
+    </style>
+
+    <style name="Sentia.BottomSheetDialog" parent="ThemeOverlay.Material3.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/Sentia.BottomSheet</item>
+    </style>
+
+    <style name="Sentia.BottomSheet" parent="Widget.Material3.BottomSheet">
+        <item name="backgroundTint">@color/surface</item>
+        <item name="shapeAppearanceOverlay">@style/Sentia.SheetShape</item>
+    </style>
+
+    <style name="Sentia.SheetShape" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSizeTopLeft">24dp</item>
+        <item name="cornerSizeTopRight">24dp</item>
+        <item name="cornerSizeBottomLeft">0dp</item>
+        <item name="cornerSizeBottomRight">0dp</item>
+    </style>
+
+    <style name="Sentia.IconButton" parent="">
+        <item name="android:layout_width">@dimen/icon_btn</item>
+        <item name="android:layout_height">@dimen/icon_btn</item>
+        <item name="android:padding">11dp</item>
+        <item name="android:scaleType">fitCenter</item>
+        <item name="android:background">?attr/selectableItemBackgroundBorderless</item>
+        <item name="tint">@color/ink</item>
+    </style>
+
+    <style name="Sentia.CircleButton" parent="">
+        <item name="android:layout_width">@dimen/circle_btn</item>
+        <item name="android:layout_height">@dimen/circle_btn</item>
+        <item name="android:padding">8dp</item>
+        <item name="android:scaleType">fitCenter</item>
+        <item name="android:background">@drawable/bg_circle_nude</item>
+        <item name="tint">@color/ink</item>
+    </style>
+
+    <style name="Sentia.Text.Small" parent="">
+        <item name="android:textSize">12sp</item>
+        <item name="android:textColor">@color/ink_muted</item>
+    </style>
+</resources>

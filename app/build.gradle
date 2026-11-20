@@ -1,0 +1,77 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.sentia.ai.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.sentia.ai.app"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "0.0.1"
+    }
+
+    // Release signing: values come from environment variables (set by GitHub Actions secrets).
+    // If they are missing, the release build falls back to the debug key so it still installs.
+    def ksPath = System.getenv("SIGNING_KEYSTORE_PATH")
+    signingConfigs {
+        release {
+            if (ksPath) {
+                storeFile file(ksPath)
+                storePassword System.getenv("SIGNING_STORE_PASSWORD")
+                keyAlias System.getenv("SIGNING_KEY_ALIAS")
+                keyPassword System.getenv("SIGNING_KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+            signingConfig ksPath ? signingConfigs.release : signingConfigs.debug
+        }
+        debug {
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError false
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'com.google.android.material:material:1.12.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'androidx.recyclerview:recyclerview:1.3.2'
+    implementation 'androidx.drawerlayout:drawerlayout:1.2.0'
+    implementation 'androidx.activity:activity:1.9.1'
+    implementation 'androidx.core:core:1.13.1'
+
+    implementation 'androidx.lifecycle:lifecycle-viewmodel:2.8.4'
+    implementation 'androidx.lifecycle:lifecycle-livedata:2.8.4'
+
+    implementation 'androidx.room:room-runtime:2.6.1'
+    annotationProcessor 'androidx.room:room-compiler:2.6.1'
+
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'com.squareup.okhttp3:okhttp-sse:4.12.0'
+    implementation 'com.google.code.gson:gson:2.11.0'
+
+    implementation 'io.noties.markwon:core:4.6.2'
+    implementation 'io.noties.markwon:ext-strikethrough:4.6.2'
+    implementation 'io.noties.markwon:ext-tables:4.6.2'
+    implementation 'io.noties.markwon:ext-tasklist:4.6.2'
+    implementation 'io.noties.markwon:linkify:4.6.2'
+}

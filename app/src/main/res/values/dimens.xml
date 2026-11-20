@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="icon_btn">44dp</dimen>
+    <dimen name="circle_btn">36dp</dimen>
+    <dimen name="msg_margin_h">16dp</dimen>
+</resources>

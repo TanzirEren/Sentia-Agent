@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Sentia</string>
+    <string name="greeting">How can I help you?</string>
+    <string name="greeting_bn">আমি কীভাবে সাহায্য করতে পারি?</string>
+    <string name="hint_message">Message Sentia</string>
+    <string name="select_model">Select model</string>
+    <string name="search_chats">Search chats</string>
+    <string name="new_chat">New chat</string>
+    <string name="editing_message">Editing message</string>
+    <string name="coming_soon">Available in the next update</string>
+
+    <string name="cd_menu">Open menu</string>
+    <string name="cd_new_chat">New chat</string>
+    <string name="cd_attach">Attach</string>
+    <string name="cd_mic">Voice input</string>
+    <string name="cd_send">Send</string>
+    <string name="cd_close">Close</string>
+    <string name="cd_more">More</string>
+    <string name="cd_copy">Copy</string>
+    <string name="cd_regenerate">Regenerate</string>
+    <string name="cd_scroll_down">Scroll to bottom</string>
+    <string name="cd_settings">Settings</string>
+    <string name="cd_profile">Profile</string>
+    <string name="cd_tokens">Token usage</string>
+    <string name="cd_remove">Remove</string>
+
+    <string name="act_copy">Copy</string>
+    <string name="act_regenerate">Regenerate</string>
+    <string name="act_edit">Edit and resend</string>
+    <string name="act_share">Share</string>
+    <string name="act_select">Select text</string>
+    <string name="act_save_prompt">Save as prompt</string>
+    <string name="act_photos">Photos</string>
+    <string name="act_files">Files</string>
+    <string name="act_prompts">Saved prompts</string>
+    <string name="attach_title">Add to message</string>
+    <string name="prompts_title">Saved prompts</string>
+    <string name="prompts_empty">No saved prompts yet. Long-press one of your messages and choose Save as prompt.</string>
+
+    <string name="copied">Copied</string>
+    <string name="saved_prompt">Saved to prompts</string>
+    <string name="retry">Retry</string>
+    <string name="stopped">Stopped</string>
+    <string name="select_title">Select text</string>
+
+    <string name="rename">Rename</string>
+    <string name="delete">Delete</string>
+    <string name="cancel">Cancel</string>
+    <string name="save">Save</string>
+    <string name="rename_chat">Rename chat</string>
+    <string name="delete_chat">Delete this chat?</string>
+    <string name="delete_chat_msg">This cannot be undone.</string>
+
+    <string name="group_today">Today</string>
+    <string name="group_yesterday">Yesterday</string>
+    <string name="group_week">Previous 7 days</string>
+    <string name="group_older">Older</string>
+
+    <string name="models_title">Choose a model</string>
+    <string name="add_provider">Add provider</string>
+    <string name="edit_provider">Edit provider</string>
+    <string name="no_providers">No provider yet. Add one to start chatting.</string>
+    <string name="free_tag">FREE</string>
+    <string name="provider_preset">Preset</string>
+    <string name="provider_name">Provider name</string>
+    <string name="provider_url">Base URL</string>
+    <string name="provider_key">API key</string>
+    <string name="provider_models">Model IDs (one per line)</string>
+    <string name="provider_need_model">Add at least one model ID</string>
+    <string name="provider_need_url">Enter a base URL</string>
+    <string name="provider_need_name">Enter a name</string>
+    <string name="need_provider">Add a provider and choose a model first</string>
+    <string name="voice_lang_bn">Voice language: Bangla</string>
+    <string name="voice_lang_en">Voice language: English</string>
+    <string name="voice_unavailable">Voice input is not available on this device</string>
+    <string name="attach_limit">You can attach up to 8 files</string>
+</resources>

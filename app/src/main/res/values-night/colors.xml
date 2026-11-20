@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="surface">#101010</color>
+    <color name="drawer_bg">#171615</color>
+    <color name="card_bg">#1C1B19</color>
+    <color name="nude">#2D2A25</color>
+    <color name="ink">#FDFCF8</color>
+    <color name="ink_muted">#A8A296</color>
+    <color name="ink_faint">#6F6A60</color>
+    <color name="on_ink">#101010</color>
+    <color name="line">#3A362F</color>
+    <color name="error">#E8806D</color>
+
+    <color name="code_bg">#1A1917</color>
+    <color name="code_header">#24221F</color>
+    <color name="code_keyword">#E58AC0</color>
+    <color name="code_string">#8FD3A4</color>
+    <color name="code_comment">#7F7A6E</color>
+    <color name="code_number">#F0B070</color>
+    <color name="code_type">#8DBBF0</color>
+    <color name="code_tag">#E58AC0</color>
+    <color name="code_key">#8DBBF0</color>
+    <color name="link">#8DBBF0</color>
+</resources>

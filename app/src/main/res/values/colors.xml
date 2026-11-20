@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand palette -->
+    <color name="off_white">#FDFCF8</color>
+    <color name="nude">#E3DBCC</color>
+    <color name="obsidian">#101010</color>
+
+    <!-- Semantic -->
+    <color name="surface">#FDFCF8</color>
+    <color name="drawer_bg">#F8F5EE</color>
+    <color name="card_bg">#FFFFFF</color>
+    <color name="ink">#101010</color>
+    <color name="ink_muted">#6E685D</color>
+    <color name="ink_faint">#A39C8E</color>
+    <color name="on_ink">#FDFCF8</color>
+    <color name="line">#DDD5C5</color>
+    <color name="error">#B3402F</color>
+
+    <!-- Code blocks -->
+    <color name="code_bg">#F1ECE1</color>
+    <color name="code_header">#E8E1D2</color>
+    <color name="code_keyword">#9B2D6F</color>
+    <color name="code_string">#2F7A4B</color>
+    <color name="code_comment">#8A8474</color>
+    <color name="code_number">#B05A10</color>
+    <color name="code_type">#1F5FA8</color>
+    <color name="code_tag">#9B2D6F</color>
+    <color name="code_key">#1F5FA8</color>
+    <color name="link">#1F5FA8</color>
+</resources>

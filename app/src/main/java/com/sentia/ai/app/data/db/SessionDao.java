@@ -34,4 +34,13 @@ public interface SessionDao {
 
     @Query("UPDATE sessions SET updatedAt = :t WHERE id = :id")
     void touch(long id, long t);
+
+    @Query("SELECT * FROM sessions ORDER BY updatedAt DESC")
+    List<SessionEntity> allSync();
+
+    @Query("SELECT COUNT(*) FROM sessions")
+    int count();
+
+    @Query("DELETE FROM sessions")
+    void deleteAll();
 }

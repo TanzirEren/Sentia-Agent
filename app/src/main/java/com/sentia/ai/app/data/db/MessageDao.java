@@ -23,4 +23,7 @@ public interface MessageDao {
 
     @Query("DELETE FROM messages WHERE id = :id")
     void delete(long id);
+
+    @Query("SELECT COUNT(*) FROM messages")
+    int count();
 }

@@ -16,6 +16,7 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.core.content.ContextCompat;
+import androidx.core.content.res.ResourcesCompat;
 import androidx.recyclerview.widget.DiffUtil;
 import androidx.recyclerview.widget.ListAdapter;
 import androidx.recyclerview.widget.RecyclerView;
@@ -88,6 +89,8 @@ public class ChatAdapter extends ListAdapter<MessageEntity, RecyclerView.ViewHol
     private final SyntaxHighlighter highlighter;
     private final Gson gson = new Gson();
     private long lastAssistantId = -1;
+    private final Typeface tfLight;
+    private final Typeface tfRegular;
 
     public ChatAdapter(Context ctx, Listener listener) {
         super(DIFF);
@@ -96,6 +99,8 @@ public class ChatAdapter extends ListAdapter<MessageEntity, RecyclerView.ViewHol
         this.settings = SettingsStore.get(ctx);
         this.highlighter = new SyntaxHighlighter(ctx);
         this.markwon = buildMarkwon(ctx);
+        this.tfLight = ResourcesCompat.getFont(ctx, R.font.hind_light);
+        this.tfRegular = ResourcesCompat.getFont(ctx, R.font.hind_regular);
     }
 
     private Markwon buildMarkwon(Context c) {
@@ -203,6 +208,15 @@ public class ChatAdapter extends ListAdapter<MessageEntity, RecyclerView.ViewHol
         return settings.textSizeSp();
     }
 
+    private void applyFont(TextView tv) {
+        Typeface tf = settings.fontWeight() == 1 ? tfRegular : tfLight;
+        if (tf != null) tv.setTypeface(tf);
+    }
+
+    private void haptic(View v) {
+        if (settings.haptics()) v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+    }
+
     // ------------------------------------------------------------------ holders
 
     class UserHolder extends RecyclerView.ViewHolder {
@@ -219,6 +233,7 @@ public class ChatAdapter extends ListAdapter<MessageEntity, RecyclerView.ViewHol
 
         void bind(MessageEntity m) {
             tv.setTextSize(textSize());
+            applyFont(tv);
             tv.setText(m.content);
             List<Attachment> atts = parse(m.attachmentsJson);
             if (atts.isEmpty()) {
@@ -233,7 +248,7 @@ public class ChatAdapter extends ListAdapter<MessageEntity, RecyclerView.ViewHol
                 att.setVisibility(View.VISIBLE);
             }
             tv.setOnLongClickListener(v -> {
-                v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                haptic(v);
                 listener.onActions(m);
                 return true;
             });
@@ -288,8 +303,8 @@ public class ChatAdapter extends ListAdapter<MessageEntity, RecyclerView.ViewHol
             btnRegen.setOnClickListener(v -> listener.onRegenerate(m));
             btnMore.setOnClickListener(v -> listener.onActions(m));
             StringBuilder sb = new StringBuilder();
-            if (m.modelLabel != null && !m.modelLabel.isEmpty()) sb.append(m.modelLabel);
-            if (m.tokensOut > 0) {
+            if (settings.showModelName() && m.modelLabel != null && !m.modelLabel.isEmpty()) sb.append(m.modelLabel);
+            if (settings.showTokens() && m.tokensOut > 0) {
                 if (sb.length() > 0) sb.append("  \u00b7  ");
                 sb.append(m.tokensOut).append(" tokens");
             }
@@ -337,12 +352,16 @@ public class ChatAdapter extends ListAdapter<MessageEntity, RecyclerView.ViewHol
 
         private void bindText(TextView tv, String text, MessageEntity m) {
             tv.setTextSize(textSize());
-            if (!text.equals(tv.getTag())) {
-                tv.setTag(text);
-                markwon.setMarkdown(tv, text);
+            applyFont(tv);
+            boolean md = settings.markdown();
+            String key = (md ? "1" : "0") + text;
+            if (!key.equals(tv.getTag())) {
+                tv.setTag(key);
+                if (md) markwon.setMarkdown(tv, text);
+                else tv.setText(text);
             }
             tv.setOnLongClickListener(v -> {
-                v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                haptic(v);
                 listener.onActions(m);
                 return true;
             });
@@ -355,9 +374,11 @@ public class ChatAdapter extends ListAdapter<MessageEntity, RecyclerView.ViewHol
             final TextView copyLabel = root.findViewById(R.id.tvCopyCode);
             lang.setText(b.lang == null || b.lang.isEmpty() ? "code" : b.lang);
             code.setTextSize(Math.max(10f, textSize() - 1.5f));
-            if (!b.text.equals(code.getTag())) {
-                code.setTag(b.text);
-                if (streaming && b.text.length() > 6000) {
+            boolean hl = settings.syntaxHighlight() && !(streaming && b.text.length() > 6000);
+            String codeKey = (hl ? "1" : "0") + b.text;
+            if (!codeKey.equals(code.getTag())) {
+                code.setTag(codeKey);
+                if (!hl) {
                     code.setText(b.text);
                 } else {
                     Spannable sp = highlighter.highlight(b.text, b.lang);
@@ -371,7 +392,7 @@ public class ChatAdapter extends ListAdapter<MessageEntity, RecyclerView.ViewHol
                 copyLabel.postDelayed(() -> copyLabel.setText(R.string.act_copy), 1500);
             });
             code.setOnLongClickListener(v -> {
-                v.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                haptic(v);
                 listener.onActions(m);
                 return true;
             });

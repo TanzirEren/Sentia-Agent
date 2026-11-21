@@ -2,7 +2,6 @@
 <resources>
     <string name="app_name">Sentia</string>
     <string name="greeting">How can I help you?</string>
-    <string name="greeting_bn">আমি কীভাবে সাহায্য করতে পারি?</string>
     <string name="hint_message">Message Sentia</string>
     <string name="select_model">Select model</string>
     <string name="search_chats">Search chats</string>
@@ -75,4 +74,127 @@
     <string name="voice_lang_en">Voice language: English</string>
     <string name="voice_unavailable">Voice input is not available on this device</string>
     <string name="attach_limit">You can attach up to 8 files</string>
+
+    <!-- 1B: settings -->
+    <string name="cd_back">Back</string>
+    <string name="settings_title">Settings</string>
+    <string name="providers_title">AI Providers</string>
+    <string name="text_preview">The quick brown fox jumps over the lazy dog. আমি বাংলা পড়তে পারি।</string>
+    <string name="sec_ai">AI</string>
+    <string name="sec_appearance">APPEARANCE</string>
+    <string name="sec_chat">CHAT</string>
+    <string name="sec_model">MODEL BEHAVIOR</string>
+    <string name="sec_voice">VOICE</string>
+    <string name="sec_data">DATA AND STORAGE</string>
+    <string name="sec_about">ABOUT</string>
+    <string name="set_providers">AI providers</string>
+    <string name="set_theme">Theme</string>
+    <string name="theme_system">System default</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="set_text_size">Text size</string>
+    <string name="set_font_weight">Font weight</string>
+    <string name="font_light">Light</string>
+    <string name="font_regular">Regular</string>
+    <string name="set_markdown">Render Markdown</string>
+    <string name="set_markdown_sub">Headings, lists, tables and links in replies</string>
+    <string name="set_syntax">Syntax highlighting</string>
+    <string name="set_show_tokens">Show token count</string>
+    <string name="set_show_model">Show model name</string>
+    <string name="set_haptics">Haptic feedback</string>
+    <string name="set_autoscroll">Auto-scroll while replying</string>
+    <string name="set_enter_send">Enter key sends message</string>
+    <string name="set_enter_send_sub">For hardware keyboards. Shift+Enter adds a new line.</string>
+    <string name="set_system_prompt">System prompt</string>
+    <string name="set_system_prompt_sub">Instructions sent with every chat</string>
+    <string name="system_prompt_hint_title">Global system prompt</string>
+    <string name="reset_default">Reset to default</string>
+    <string name="set_reply_lang">Reply language</string>
+    <string name="lang_auto">Same as I write</string>
+    <string name="lang_en">English</string>
+    <string name="lang_bn">Bangla</string>
+    <string name="set_include_date">Include date and time</string>
+    <string name="set_include_date_sub">Tells the model today's date</string>
+    <string name="set_temperature">Custom temperature</string>
+    <string name="set_temperature_sub">Off lets the model use its own default</string>
+    <string name="temperature">Temperature</string>
+    <string name="set_max_tokens">Max reply length</string>
+    <string name="max_tokens_auto">Model default</string>
+    <string name="set_context">Context size</string>
+    <string name="ctx_small">Small (20k)</string>
+    <string name="ctx_medium">Medium (60k)</string>
+    <string name="ctx_large">Large (120k)</string>
+    <string name="ctx_max">Maximum (400k)</string>
+    <string name="set_voice_lang">Voice input language</string>
+    <string name="voice_device">Device default</string>
+    <string name="voice_bn">Bangla (bn-BD)</string>
+    <string name="voice_en">English (en-US)</string>
+    <string name="set_export">Export all chats</string>
+    <string name="export_json">JSON file</string>
+    <string name="export_md">Markdown file</string>
+    <string name="export_done">Chats exported</string>
+    <string name="export_failed">Export failed</string>
+    <string name="set_saved_prompts">Saved prompts</string>
+    <string name="set_clear_cache">Clear attachment files</string>
+    <string name="set_clear_cache_sub">Old chats will no longer send their attached files</string>
+    <string name="set_delete_all">Delete all chats</string>
+    <string name="delete_all_title">Delete all chats?</string>
+    <string name="delete_all_msg">Every chat and message will be removed from this phone.</string>
+    <string name="cache_cleared">Attachment files cleared</string>
+    <string name="chats_deleted">All chats deleted</string>
+    <string name="set_privacy">Privacy policy</string>
+    <string name="set_licenses">Open-source licenses</string>
+    <string name="set_share">Share Sentia</string>
+    <string name="set_reset">Reset all settings</string>
+    <string name="reset_title">Reset all settings?</string>
+    <string name="reset_msg">Providers and chats are kept. Only preferences go back to default.</string>
+    <string name="reset_done">Settings reset</string>
+    <string name="version_label">Version</string>
+    <string name="developer_label">Developer</string>
+    <string name="developer_name">Sh. Tanzir</string>
+    <string name="lbl_telegram">Telegram</string>
+    <string name="lbl_website">Website</string>
+    <string name="lbl_github">GitHub</string>
+    <string name="lbl_developer">Developer</string>
+    <string name="cd_telegram">Sentia Telegram</string>
+    <string name="cd_website">Sentia website</string>
+    <string name="cd_github">Sentia GitHub</string>
+    <string name="cd_developer">Developer Telegram</string>
+    <string name="licenses_body">Sentia uses these open-source projects:
+
+Markwon (Apache 2.0)
+OkHttp (Apache 2.0)
+Gson (Apache 2.0)
+AndroidX and Room (Apache 2.0)
+Material Components (Apache 2.0)
+Hind Siliguri font (SIL Open Font License)</string>
+    <string name="open_failed">No app can open this link</string>
+
+    <!-- 1B: providers -->
+    <string name="choose_preset">Choose a provider preset</string>
+    <string name="type_openai">OpenAI-compatible</string>
+    <string name="type_anthropic">Anthropic</string>
+    <string name="api_keys">API keys</string>
+    <string name="api_keys_hint">Add more than one key. If a key hits its limit, Sentia switches to the next one automatically.</string>
+    <string name="add_key">Add another key</string>
+    <string name="provider_key_n">API key</string>
+    <string name="models">Models</string>
+    <string name="add_models">Add</string>
+    <string name="fetch_models">Fetch models</string>
+    <string name="filter_models">Filter models</string>
+    <string name="select_all">Select all</string>
+    <string name="select_free">Select free</string>
+    <string name="clear_selection">Clear</string>
+    <string name="no_models_yet">No models yet. Fetch them from the provider or add model IDs above.</string>
+    <string name="fetching">Fetching models...</string>
+    <string name="fetch_ok">Found %1$d models, %2$d free</string>
+    <string name="fetch_need_url">Enter the base URL first</string>
+    <string name="models_selected">%1$d of %2$d selected</string>
+    <string name="provider_saved">Provider saved</string>
+    <string name="provider_deleted">Provider deleted</string>
+    <string name="provider_need_enabled">Select at least one model</string>
+    <string name="provider_sub">%1$d of %2$d models on</string>
+    <string name="key_switched">API key limit reached. Switched to key %1$d</string>
+    <string name="providers_count">%1$d providers</string>
+    <string name="no_provider_yet">None yet</string>
 </resources>

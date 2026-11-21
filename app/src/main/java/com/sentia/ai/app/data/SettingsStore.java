@@ -62,4 +62,52 @@ public class SettingsStore {
     /** "" = device default, otherwise a BCP-47 tag such as bn-BD or en-US */
     public String voiceLang() { return p.getString("voice_lang", ""); }
     public void setVoiceLang(String s) { p.edit().putString("voice_lang", s).apply(); }
+
+    // ---- appearance / chat toggles
+    public int fontWeight() { return p.getInt("font_weight", 0); }
+    public void setFontWeight(int v) { p.edit().putInt("font_weight", v).apply(); }
+
+    public boolean markdown() { return p.getBoolean("markdown", true); }
+    public void setMarkdown(boolean v) { p.edit().putBoolean("markdown", v).apply(); }
+
+    public boolean syntaxHighlight() { return p.getBoolean("syntax", true); }
+    public void setSyntaxHighlight(boolean v) { p.edit().putBoolean("syntax", v).apply(); }
+
+    public boolean showTokens() { return p.getBoolean("show_tokens", true); }
+    public void setShowTokens(boolean v) { p.edit().putBoolean("show_tokens", v).apply(); }
+
+    public boolean showModelName() { return p.getBoolean("show_model", true); }
+    public void setShowModelName(boolean v) { p.edit().putBoolean("show_model", v).apply(); }
+
+    public boolean haptics() { return p.getBoolean("haptics", true); }
+    public void setHaptics(boolean v) { p.edit().putBoolean("haptics", v).apply(); }
+
+    public boolean autoScrollStream() { return p.getBoolean("autoscroll", true); }
+    public void setAutoScrollStream(boolean v) { p.edit().putBoolean("autoscroll", v).apply(); }
+
+    // ---- model behaviour
+    /** "auto", "en" or "bn" */
+    public String replyLanguage() { return p.getString("reply_lang", "auto"); }
+    public void setReplyLanguage(String v) { p.edit().putString("reply_lang", v).apply(); }
+
+    public boolean includeDate() { return p.getBoolean("include_date", false); }
+    public void setIncludeDate(boolean v) { p.edit().putBoolean("include_date", v).apply(); }
+
+    public boolean temperatureEnabled() { return p.getBoolean("temp_enabled", false); }
+    public void setTemperatureEnabled(boolean v) { p.edit().putBoolean("temp_enabled", v).apply(); }
+
+    public float temperature() { return p.getFloat("temperature", 0.7f); }
+    public void setTemperature(float v) { p.edit().putFloat("temperature", v).apply(); }
+
+    /** 0 means "use the model default" */
+    public int maxTokens() { return p.getInt("max_tokens", 0); }
+    public void setMaxTokens(int v) { p.edit().putInt("max_tokens", v).apply(); }
+
+    public int contextChars() { return p.getInt("context_chars", 120000); }
+    public void setContextChars(int v) { p.edit().putInt("context_chars", v).apply(); }
+
+    public void resetAll() {
+        p.edit().clear().apply();
+        applyTheme();
+    }
 }

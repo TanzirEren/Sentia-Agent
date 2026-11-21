@@ -26,7 +26,8 @@ public class AnthropicClient implements LlmClient {
 
         JsonObject body = new JsonObject();
         body.addProperty("model", r.modelId);
-        body.addProperty("max_tokens", 8192);
+        body.addProperty("max_tokens", r.maxTokens > 0 ? r.maxTokens : 8192);
+        if (r.temperature != null) body.addProperty("temperature", Math.min(1f, r.temperature));
         body.addProperty("stream", true);
         if (r.systemPrompt != null && !r.systemPrompt.trim().isEmpty()) {
             body.addProperty("system", r.systemPrompt);
@@ -83,6 +84,10 @@ public class AnthropicClient implements LlmClient {
                     if (done.compareAndSet(false, true)) l.onError(m);
                 }
 
+                private void failHttp(int code, String m) {
+                    if (done.compareAndSet(false, true)) l.onHttpError(code, m);
+                }
+
                 @Override
                 public void onEvent(EventSource source, String id, String type, String data) {
                     if (data == null) return;
@@ -133,7 +138,9 @@ public class AnthropicClient implements LlmClient {
                 @Override
                 public void onFailure(EventSource source, Throwable t, Response resp) {
                     String msg;
+                    int httpCode = 0;
                     if (resp != null) {
+                        httpCode = resp.code();
                         String b = "";
                         try {
                             if (resp.body() != null) b = resp.body().string();
@@ -148,7 +155,8 @@ public class AnthropicClient implements LlmClient {
                     } else {
                         msg = "Connection closed";
                     }
-                    fail(msg);
+                    if (httpCode != 0 && httpCode != 200) failHttp(httpCode, msg);
+                    else fail(msg);
                 }
             });
         } catch (Exception e) {

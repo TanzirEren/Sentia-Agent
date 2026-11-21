@@ -119,7 +119,9 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         vm.ensureSelection();
+        vm.validateCurrent();
         updateModelPill();
+        if (chatAdapter != null) chatAdapter.notifyDataSetChanged();
     }
 
     @Override
@@ -243,7 +245,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         View.OnClickListener soon = v -> Toast.makeText(this, R.string.coming_soon, Toast.LENGTH_SHORT).show();
-        findViewById(R.id.btnSettings).setOnClickListener(soon);
+        findViewById(R.id.btnSettings).setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
         findViewById(R.id.btnProfile).setOnClickListener(soon);
         findViewById(R.id.btnTokens).setOnClickListener(soon);
     }
@@ -297,7 +299,7 @@ public class MainActivity extends AppCompatActivity {
     private void observe() {
         vm.messages().observe(this, list -> {
             chatAdapter.submit(list, () -> {
-                if (autoScroll) scrollToEnd();
+                if (autoScroll && (settings.autoScrollStream() || !isStreaming)) scrollToEnd();
             });
             boolean empty = list.isEmpty();
             emptyState.setVisibility(empty ? View.VISIBLE : View.GONE);
@@ -350,19 +352,20 @@ public class MainActivity extends AppCompatActivity {
         if (!vm.hasModel()) {
             Toast.makeText(this, R.string.need_provider, Toast.LENGTH_SHORT).show();
             if (providers.all().isEmpty()) {
-                QuickProviderDialog.show(this, null, this::updateModelPill);
+                ProviderSheet.show(this, null, this::updateModelPill);
             } else {
                 showModelPicker();
             }
             return;
         }
-        btnSend.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+        if (settings.haptics()) btnSend.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
         vm.send(text, new ArrayList<>(pending));
         etInput.setText("");
         settings.setDraft("");
         pending.clear();
         refreshAttachments();
         autoScroll = true;
+        rvMessages.postDelayed(this::scrollToEnd, 200);
     }
 
     private void startNewChat() {
@@ -466,12 +469,12 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onAddProvider() {
-                QuickProviderDialog.show(MainActivity.this, null, MainActivity.this::updateModelPill);
+                ProviderSheet.show(MainActivity.this, null, MainActivity.this::updateModelPill);
             }
 
             @Override
             public void onEditProvider(Provider p) {
-                QuickProviderDialog.show(MainActivity.this, p, MainActivity.this::updateModelPill);
+                ProviderSheet.show(MainActivity.this, p, MainActivity.this::updateModelPill);
             }
         });
     }

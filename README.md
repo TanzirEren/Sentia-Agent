@@ -1,4 +1,4 @@
-# Sentia (v0.0.1) — Phase 1A
+# Sentia (v0.0.2) — Phase 1A + 1B
 
 Mobile AI agent app. Package: `com.sentia.ai.app`. Java + XML, Material 3, min SDK 24.
 
@@ -14,7 +14,21 @@ Mobile AI agent app. Package: `com.sentia.ai.app`. Java + XML, Material 3, min S
 - Slim Hind Siliguri font (English and Bangla), light and dark themes, palette #FDFCF8 / #E3DBCC / #101010
 - Signing + GitHub Actions build
 
-Drawer buttons for Settings, Profile and Token usage show "next update" until 1B and 1C.
+## Added in 1B
+
+- Settings page: AI providers, system prompt editor, theme, text size (with live preview), font weight,
+  Markdown / syntax highlight / token count / model name / haptics / auto-scroll / Enter-to-send toggles,
+  reply language, include date and time, custom temperature, max reply length, context size, voice language,
+  export all chats (JSON or Markdown), saved prompts, clear attachment files, delete all chats,
+  privacy policy, licenses, share, reset settings
+- About: version, developer (Sh. Tanzir) and four links: Sentia Telegram, website, GitHub, developer Telegram
+- AI Providers page: list with on/off switch per provider, add and edit in a full-height dialog
+- 30 provider presets plus custom OpenAI-compatible and Anthropic-compatible
+- Several API keys per provider, with automatic switch to the next key on HTTP 401, 402, 403 or 429
+- Fetch models from the provider (GET /models), FREE tag, filter, select all / select free / clear,
+  add model IDs by hand, per-model on/off
+
+Drawer buttons for Profile and Token usage still show "next update" until 1C.
 
 ## Build
 

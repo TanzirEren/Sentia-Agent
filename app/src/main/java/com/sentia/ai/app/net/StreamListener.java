@@ -9,4 +9,9 @@ public interface StreamListener {
     void onDone();
 
     void onError(String message);
+
+    /** Called instead of onError when the server answered with an HTTP error code. */
+    default void onHttpError(int code, String message) {
+        onError(message);
+    }
 }

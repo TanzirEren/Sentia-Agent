@@ -39,5 +39,13 @@
         <activity
             android:name=".ui.TextSelectActivity"
             android:exported="false" />
+
+        <activity
+            android:name=".ui.SettingsActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.ProvidersActivity"
+            android:exported="false" />
     </application>
 </manifest>

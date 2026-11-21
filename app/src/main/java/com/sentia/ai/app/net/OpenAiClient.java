@@ -26,6 +26,8 @@ public class OpenAiClient implements LlmClient {
         void finish() { if (done.compareAndSet(false, true)) l.onDone(); }
 
         void fail(String m) { if (done.compareAndSet(false, true)) l.onError(m); }
+
+        void failHttp(int code, String m) { if (done.compareAndSet(false, true)) l.onHttpError(code, m); }
     }
 
     @Override
@@ -39,6 +41,8 @@ public class OpenAiClient implements LlmClient {
         JsonObject so = new JsonObject();
         so.addProperty("include_usage", true);
         body.add("stream_options", so);
+        if (r.temperature != null) body.addProperty("temperature", r.temperature);
+        if (r.maxTokens > 0) body.addProperty("max_tokens", r.maxTokens);
 
         JsonArray msgs = new JsonArray();
         if (r.systemPrompt != null && !r.systemPrompt.trim().isEmpty()) {
@@ -134,7 +138,9 @@ public class OpenAiClient implements LlmClient {
                 @Override
                 public void onFailure(EventSource source, Throwable t, Response resp) {
                     String msg;
+                    int httpCode = 0;
                     if (resp != null) {
+                        httpCode = resp.code();
                         String b = "";
                         try {
                             if (resp.body() != null) b = resp.body().string();
@@ -151,7 +157,8 @@ public class OpenAiClient implements LlmClient {
                     } else {
                         msg = "Connection closed";
                     }
-                    g.fail(msg);
+                    if (httpCode != 0 && httpCode != 200) g.failHttp(httpCode, msg);
+                    else g.fail(msg);
                 }
             });
         } catch (Exception e) {

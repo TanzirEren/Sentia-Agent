@@ -12,6 +12,7 @@ import androidx.lifecycle.MediatorLiveData;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import com.sentia.ai.app.data.KeyRotator;
 import com.sentia.ai.app.data.ProviderStore;
 import com.sentia.ai.app.data.SettingsStore;
 import com.sentia.ai.app.data.db.AppDatabase;
@@ -31,8 +32,13 @@ import com.sentia.ai.app.util.ImageUtil;
 import com.sentia.ai.app.util.TokenEstimator;
 
 import java.lang.reflect.Type;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -67,6 +73,7 @@ public class ChatViewModel extends AndroidViewModel {
     private int usageIn, usageOut;
     private boolean flushPending;
     private volatile int lastRequestChars;
+    private final Set<Integer> triedKeys = new HashSet<>();
 
     public ChatViewModel(@NonNull Application app) {
         super(app);
@@ -307,6 +314,8 @@ public class ChatViewModel extends AndroidViewModel {
             currentSessionLive.setValue(sid);
             if (s != null) title.setValue(s.title == null ? "" : s.title);
             setList(all);
+            triedKeys.clear();
+            triedKeys.add(req.keyIndex);
             startStream(req, msgId);
         });
     }
@@ -315,11 +324,15 @@ public class ChatViewModel extends AndroidViewModel {
         ChatRequest r = new ChatRequest();
         r.provider = p;
         r.modelId = modelId;
-        r.systemPrompt = settings.systemPrompt();
-        r.apiKey = p.firstKey();
+        r.systemPrompt = composeSystemPrompt();
+        int ki = KeyRotator.pick(p);
+        r.keyIndex = Math.max(ki, 0);
+        r.apiKey = ki >= 0 ? KeyRotator.keyAt(p, ki) : "";
+        r.temperature = settings.temperatureEnabled() ? Float.valueOf(settings.temperature()) : null;
+        r.maxTokens = settings.maxTokens();
 
         List<ChatMsg> out = new ArrayList<>();
-        int budget = 120000;
+        int budget = settings.contextChars();
         int chars = 0;
         for (int i = history.size() - 1; i >= 0; i--) {
             MessageEntity m = history.get(i);
@@ -335,6 +348,18 @@ public class ChatViewModel extends AndroidViewModel {
         r.messages = out;
         lastRequestChars = chars + (r.systemPrompt == null ? 0 : r.systemPrompt.length());
         return r;
+    }
+
+    private String composeSystemPrompt() {
+        StringBuilder sb = new StringBuilder(settings.systemPrompt());
+        String lang = settings.replyLanguage();
+        if ("en".equals(lang)) sb.append("\n\nAlways reply in English.");
+        else if ("bn".equals(lang)) sb.append("\n\nAlways reply in Bangla (Bengali).");
+        if (settings.includeDate()) {
+            sb.append("\n\nCurrent date and time: ")
+                    .append(new SimpleDateFormat("EEEE, d MMMM yyyy, HH:mm z", Locale.ENGLISH).format(new Date()));
+        }
+        return sb.toString();
     }
 
     private ChatMsg toChatMsg(MessageEntity m) {
@@ -413,10 +438,56 @@ public class ChatViewModel extends AndroidViewModel {
             }
 
             @Override
+            public void onHttpError(final int code, final String message) {
+                main.post(() -> {
+                    if (token != streamToken) return;
+                    boolean keyProblem = code == 401 || code == 402 || code == 403 || code == 429;
+                    if (sb.length() == 0 && keyProblem && rotateKey(req, msgId, code)) return;
+                    finishStream(MessageEntity.STOPPED, message == null ? "Unknown error" : message);
+                });
+            }
+
+            @Override
             public void onError(final String message) {
                 main.post(() -> {
                     if (token != streamToken) return;
                     finishStream(MessageEntity.STOPPED, message == null ? "Unknown error" : message);
+                });
+            }
+        });
+    }
+
+    /** Tries the provider's next API key. Returns true if a new attempt was started. */
+    private boolean rotateKey(ChatRequest req, long msgId, int code) {
+        Provider p = req.provider;
+        if (p.apiKeys == null || p.apiKeys.size() < 2) return false;
+        KeyRotator.block(providers, p, req.keyIndex, code == 429 ? 60000L : 6L * 3600000L);
+        int next = KeyRotator.next(p, triedKeys);
+        if (next < 0) return false;
+        triedKeys.add(next);
+        KeyRotator.setActive(providers, p, next);
+        req.keyIndex = next;
+        req.apiKey = KeyRotator.keyAt(p, next);
+        toast.setValue(getApplication().getString(com.sentia.ai.app.R.string.key_switched, next + 1));
+        if (call != null) {
+            try {
+                call.cancel();
+            } catch (Exception ignored) {
+            }
+        }
+        streamToken++;
+        startStream(req, msgId);
+        return true;
+    }
+
+    /** If the open chat was deleted elsewhere (for example in Settings), start a fresh chat. */
+    public void validateCurrent() {
+        final long sid = sessionId;
+        if (sid == 0) return;
+        io.execute(() -> {
+            if (db.sessionDao().get(sid) == null) {
+                main.post(() -> {
+                    if (sessionId == sid) newChat();
                 });
             }
         });

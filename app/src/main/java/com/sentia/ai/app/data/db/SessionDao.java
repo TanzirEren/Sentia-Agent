@@ -43,4 +43,16 @@ public interface SessionDao {
 
     @Query("DELETE FROM sessions")
     void deleteAll();
+
+    @Query("UPDATE sessions SET folderId = :folderId WHERE id = :id")
+    void moveToFolder(long id, long folderId);
+
+    @Query("UPDATE sessions SET folderId = 0 WHERE folderId = :folderId")
+    void clearFolder(long folderId);
+
+    @Query("DELETE FROM sessions WHERE folderId = :folderId")
+    void deleteInFolder(long folderId);
+
+    @Query("SELECT * FROM sessions WHERE folderId = :folderId ORDER BY updatedAt DESC")
+    List<SessionEntity> inFolder(long folderId);
 }

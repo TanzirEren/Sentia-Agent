@@ -85,9 +85,13 @@
                 android:src="@drawable/sentia_portrait" />
 
             <TextView
+                android:id="@+id/tvGreeting"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="20dp"
+                android:gravity="center"
+                android:paddingStart="24dp"
+                android:paddingEnd="24dp"
                 android:text="@string/greeting"
                 android:textColor="@color/ink"
                 android:textSize="24sp" />

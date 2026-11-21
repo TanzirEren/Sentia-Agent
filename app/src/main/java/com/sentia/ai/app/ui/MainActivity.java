@@ -38,12 +38,15 @@ import com.sentia.ai.app.R;
 import com.sentia.ai.app.data.ProviderStore;
 import com.sentia.ai.app.data.PromptStore;
 import com.sentia.ai.app.data.SettingsStore;
+import com.sentia.ai.app.data.ProfileStore;
+import com.sentia.ai.app.data.db.FolderEntity;
 import com.sentia.ai.app.data.db.MessageEntity;
 import com.sentia.ai.app.data.db.SessionEntity;
 import com.sentia.ai.app.model.Attachment;
 import com.sentia.ai.app.model.Provider;
 import com.sentia.ai.app.model.SavedPrompt;
 import com.sentia.ai.app.util.AttachmentUtil;
+import com.sentia.ai.app.util.ChatExporter;
 import com.sentia.ai.app.util.TokenEstimator;
 
 import java.util.ArrayList;
@@ -66,7 +69,15 @@ public class MainActivity extends AppCompatActivity {
     private ImageButton btnSend;
 
     private ChatAdapter chatAdapter;
-    private SessionAdapter sessionAdapter;
+    private DrawerAdapter drawerAdapter;
+    private List<FolderEntity> lastFolders = new ArrayList<>();
+    private List<SessionEntity> lastSessions = new ArrayList<>();
+    private String searchText = "";
+    private long exportSessionId;
+    private long exportFolderId;
+    private String exportFolderName = "";
+    private TextView tvGreeting;
+    private ActivityResultLauncher<String> exportSessionMd, exportSessionJson, exportFolderMd;
     private AttachmentAdapter attAdapter;
     private LinearLayoutManager lm;
 
@@ -96,6 +107,7 @@ public class MainActivity extends AppCompatActivity {
 
         bindViews();
         registerLaunchers();
+        registerExportLaunchers();
         setupMessages();
         setupDrawer();
         setupInput();
@@ -105,6 +117,7 @@ public class MainActivity extends AppCompatActivity {
         etInput.setText(settings.draft());
         etInput.setSelection(etInput.getText().length());
         updateModelPill();
+        updateGreeting();
         updateSendState();
         handleShareIntent(getIntent());
     }
@@ -121,6 +134,7 @@ public class MainActivity extends AppCompatActivity {
         vm.ensureSelection();
         vm.validateCurrent();
         updateModelPill();
+        updateGreeting();
         if (chatAdapter != null) chatAdapter.notifyDataSetChanged();
     }
 
@@ -146,6 +160,7 @@ public class MainActivity extends AppCompatActivity {
         editBanner = findViewById(R.id.editBanner);
         btnScrollDown = findViewById(R.id.btnScrollDown);
         btnSend = findViewById(R.id.btnSend);
+        tvGreeting = findViewById(R.id.tvGreeting);
     }
 
     private void registerLaunchers() {
@@ -164,6 +179,18 @@ public class MainActivity extends AppCompatActivity {
             String add = r.get(0);
             etInput.setText(cur.isEmpty() ? add : cur + (cur.endsWith(" ") ? "" : " ") + add);
             etInput.setSelection(etInput.getText().length());
+        });
+    }
+
+    private void registerExportLaunchers() {
+        exportSessionMd = registerForActivityResult(new ActivityResultContracts.CreateDocument("text/markdown"), uri -> {
+            if (uri != null) runSessionExport(uri, true);
+        });
+        exportSessionJson = registerForActivityResult(new ActivityResultContracts.CreateDocument("application/json"), uri -> {
+            if (uri != null) runSessionExport(uri, false);
+        });
+        exportFolderMd = registerForActivityResult(new ActivityResultContracts.CreateDocument("text/markdown"), uri -> {
+            if (uri != null) runFolderExport(uri);
         });
     }
 
@@ -222,32 +249,47 @@ public class MainActivity extends AppCompatActivity {
             drawer.closeDrawer(GravityCompat.START);
         });
 
-        sessionAdapter = new SessionAdapter(this, new SessionAdapter.Listener() {
+        drawerAdapter = new DrawerAdapter(this, new DrawerAdapter.Listener() {
             @Override
-            public void onOpen(SessionEntity s) {
-                vm.openSession(s.id);
+            public void onOpenSession(SessionEntity se) {
+                vm.openSession(se.id);
                 drawer.closeDrawer(GravityCompat.START);
             }
 
             @Override
-            public void onMenu(View anchor, SessionEntity s) {
-                showSessionMenu(anchor, s);
+            public void onSessionMenu(View anchor, SessionEntity se) {
+                showSessionMenu(anchor, se);
+            }
+
+            @Override
+            public void onFolderMenu(View anchor, FolderEntity f) {
+                showFolderMenu(anchor, f);
+            }
+
+            @Override
+            public void onAddFolder() {
+                promptNewProject();
             }
         });
         rvSessions.setLayoutManager(new LinearLayoutManager(this));
-        rvSessions.setAdapter(sessionAdapter);
+        rvSessions.setAdapter(drawerAdapter);
 
         etSearch.addTextChangedListener(new SimpleWatcher() {
             @Override
             public void afterTextChanged(Editable s) {
-                vm.setSearch(s.toString());
+                searchText = s.toString();
+                vm.setSearch(searchText);
+                rebuildDrawer();
             }
         });
 
-        View.OnClickListener soon = v -> Toast.makeText(this, R.string.coming_soon, Toast.LENGTH_SHORT).show();
         findViewById(R.id.btnSettings).setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
-        findViewById(R.id.btnProfile).setOnClickListener(soon);
-        findViewById(R.id.btnTokens).setOnClickListener(soon);
+        findViewById(R.id.btnProfile).setOnClickListener(v -> startActivity(new Intent(this, ProfileActivity.class)));
+        findViewById(R.id.btnTokens).setOnClickListener(v -> {
+            Intent i = new Intent(this, TokenActivity.class);
+            i.putExtra("sessionId", vm.currentSessionId());
+            startActivity(i);
+        });
     }
 
     private void setupInput() {
@@ -310,8 +352,15 @@ public class MainActivity extends AppCompatActivity {
             updateSendState();
         });
         vm.title().observe(this, t -> tvTitle.setText(t == null || t.isEmpty() ? getString(R.string.app_name) : t));
-        vm.sessions().observe(this, l -> sessionAdapter.submit(l));
-        vm.currentSession().observe(this, id -> sessionAdapter.setCurrent(id == null ? 0 : id));
+        vm.sessions().observe(this, l -> {
+            lastSessions = l == null ? new ArrayList<>() : l;
+            rebuildDrawer();
+        });
+        vm.folders().observe(this, l -> {
+            lastFolders = l == null ? new ArrayList<>() : l;
+            rebuildDrawer();
+        });
+        vm.currentSession().observe(this, id -> drawerAdapter.setCurrent(id == null ? 0 : id));
         vm.editing().observe(this, m -> editBanner.setVisibility(m == null ? View.GONE : View.VISIBLE));
         vm.toast().observe(this, msg -> {
             if (msg != null) {
@@ -479,16 +528,184 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void showSessionMenu(View anchor, SessionEntity s) {
+    private void rebuildDrawer() {
+        if (drawerAdapter != null) drawerAdapter.submit(lastFolders, lastSessions, searchText);
+    }
+
+    private void updateGreeting() {
+        String name = ProfileStore.get(this).displayName();
+        tvGreeting.setText(name.isEmpty() ? getString(R.string.greeting) : getString(R.string.greeting_named, name));
+    }
+
+    private static String safeName(String raw, String fallback) {
+        String n = raw == null ? "" : raw.trim().replaceAll("[^A-Za-z0-9._-]+", "_");
+        if (n.length() > 40) n = n.substring(0, 40);
+        return n.isEmpty() ? fallback : n;
+    }
+
+    private void showSessionMenu(View anchor, final SessionEntity s) {
         PopupMenu pm = new PopupMenu(this, anchor);
         pm.getMenu().add(0, 1, 0, R.string.rename);
-        pm.getMenu().add(0, 2, 1, R.string.delete);
+        pm.getMenu().add(0, 2, 1, R.string.act_move_project);
+        pm.getMenu().add(0, 3, 2, R.string.act_export);
+        pm.getMenu().add(0, 4, 3, R.string.delete);
         pm.setOnMenuItemClickListener(item -> {
-            if (item.getItemId() == 1) showRename(s);
-            else if (item.getItemId() == 2) confirmDelete(s);
+            int id = item.getItemId();
+            if (id == 1) showRename(s);
+            else if (id == 2) chooseFolderFor(s);
+            else if (id == 3) exportChatSheet(s);
+            else if (id == 4) confirmDelete(s);
             return true;
         });
         pm.show();
+    }
+
+    private void chooseFolderFor(final SessionEntity s) {
+        List<ActionSheet.Row> rows = new ArrayList<>();
+        for (final FolderEntity f : lastFolders) {
+            if (f.id == s.folderId) continue;
+            rows.add(new ActionSheet.Row(R.drawable.ic_folder, f.name == null ? "" : f.name,
+                    () -> vm.moveSession(s.id, f.id)));
+        }
+        if (s.folderId != 0) {
+            rows.add(new ActionSheet.Row(R.drawable.ic_close, getString(R.string.no_project), () -> vm.moveSession(s.id, 0)));
+        }
+        rows.add(new ActionSheet.Row(R.drawable.ic_plus, getString(R.string.new_project), () -> promptNewProjectAndMove(s)));
+        ActionSheet.show(this, getString(R.string.move_title), rows);
+    }
+
+    private void exportChatSheet(final SessionEntity s) {
+        List<ActionSheet.Row> rows = new ArrayList<>();
+        rows.add(new ActionSheet.Row(R.drawable.ic_share, getString(R.string.share_text), () -> io.execute(() -> {
+            final String md = ChatExporter.sessionMarkdown(getApplicationContext(), s.id);
+            runOnUiThread(() -> shareText(md));
+        })));
+        rows.add(new ActionSheet.Row(R.drawable.ic_file, getString(R.string.save_md), () -> {
+            exportSessionId = s.id;
+            exportSessionMd.launch(safeName(s.title, "sentia-chat") + ".md");
+        }));
+        rows.add(new ActionSheet.Row(R.drawable.ic_file, getString(R.string.save_json), () -> {
+            exportSessionId = s.id;
+            exportSessionJson.launch(safeName(s.title, "sentia-chat") + ".json");
+        }));
+        ActionSheet.show(this, getString(R.string.export_chat_title), rows);
+    }
+
+    private void runSessionExport(final android.net.Uri uri, final boolean md) {
+        final long sid = exportSessionId;
+        io.execute(() -> {
+            final boolean ok = ChatExporter.exportSession(getApplicationContext(), uri, sid, md);
+            runOnUiThread(() -> Toast.makeText(this, ok ? R.string.export_done : R.string.export_failed, Toast.LENGTH_SHORT).show());
+        });
+    }
+
+    private void runFolderExport(final android.net.Uri uri) {
+        final long fid = exportFolderId;
+        final String name = exportFolderName;
+        io.execute(() -> {
+            final boolean ok = ChatExporter.exportFolder(getApplicationContext(), uri, fid, name, true);
+            runOnUiThread(() -> Toast.makeText(this, ok ? R.string.export_done : R.string.export_failed, Toast.LENGTH_SHORT).show());
+        });
+    }
+
+    private void showFolderMenu(View anchor, final FolderEntity f) {
+        PopupMenu pm = new PopupMenu(this, anchor);
+        pm.getMenu().add(0, 1, 0, R.string.act_new_chat_here);
+        pm.getMenu().add(0, 2, 1, R.string.rename);
+        pm.getMenu().add(0, 3, 2, R.string.act_instructions);
+        pm.getMenu().add(0, 4, 3, R.string.act_export);
+        pm.getMenu().add(0, 5, 4, R.string.delete);
+        pm.setOnMenuItemClickListener(item -> {
+            int id = item.getItemId();
+            if (id == 1) {
+                pending.clear();
+                refreshAttachments();
+                vm.newChatInFolder(f);
+                drawer.closeDrawer(GravityCompat.START);
+            } else if (id == 2) {
+                renameFolderDialog(f);
+            } else if (id == 3) {
+                editInstructions(f);
+            } else if (id == 4) {
+                exportFolderId = f.id;
+                exportFolderName = f.name == null ? "" : f.name;
+                exportFolderMd.launch(safeName(f.name, "sentia-project") + ".md");
+            } else if (id == 5) {
+                confirmDeleteFolder(f);
+            }
+            return true;
+        });
+        pm.show();
+    }
+
+    private void promptNewProject() {
+        View v = getLayoutInflater().inflate(R.layout.dialog_rename, null);
+        final EditText et = v.findViewById(R.id.etRename);
+        et.setHint(R.string.project_name);
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.new_project)
+                .setView(v)
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.save, (d, w) -> {
+                    String t = et.getText().toString().trim();
+                    if (!t.isEmpty()) vm.createFolder(t, false);
+                })
+                .show();
+    }
+
+    private void promptNewProjectAndMove(final SessionEntity s) {
+        View v = getLayoutInflater().inflate(R.layout.dialog_rename, null);
+        final EditText et = v.findViewById(R.id.etRename);
+        et.setHint(R.string.project_name);
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.new_project)
+                .setView(v)
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.save, (d, w) -> {
+                    String t = et.getText().toString().trim();
+                    if (!t.isEmpty()) vm.createFolderAndMove(t, s.id);
+                })
+                .show();
+    }
+
+    private void renameFolderDialog(final FolderEntity f) {
+        View v = getLayoutInflater().inflate(R.layout.dialog_rename, null);
+        final EditText et = v.findViewById(R.id.etRename);
+        et.setText(f.name);
+        et.setSelection(et.getText().length());
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.rename_project)
+                .setView(v)
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.save, (d, w) -> {
+                    String t = et.getText().toString().trim();
+                    if (!t.isEmpty()) vm.renameFolder(f.id, t);
+                })
+                .show();
+    }
+
+    private void editInstructions(final FolderEntity f) {
+        View v = getLayoutInflater().inflate(R.layout.dialog_text_edit, null);
+        final com.google.android.material.textfield.TextInputEditText et = v.findViewById(R.id.etDialogText);
+        et.setText(f.instructions == null ? "" : f.instructions);
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.project_instructions)
+                .setMessage(R.string.project_instructions_hint)
+                .setView(v)
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.save, (d, w) ->
+                        vm.setFolderInstructions(f.id, et.getText() == null ? "" : et.getText().toString().trim()))
+                .show();
+    }
+
+    private void confirmDeleteFolder(final FolderEntity f) {
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.delete_project_title)
+                .setMessage(R.string.delete_project_msg)
+                .setNegativeButton(R.string.cancel, null)
+                .setNeutralButton(R.string.keep_chats, (d, w) -> vm.deleteFolder(f.id, false))
+                .setPositiveButton(R.string.delete_with_chats, (d, w) -> vm.deleteFolder(f.id, true))
+                .show();
     }
 
     private void showRename(SessionEntity s) {

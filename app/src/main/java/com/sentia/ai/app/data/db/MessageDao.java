@@ -26,4 +26,25 @@ public interface MessageDao {
 
     @Query("SELECT COUNT(*) FROM messages")
     int count();
+
+    @Query("SELECT COALESCE(SUM(tokensIn), 0) FROM messages WHERE role = 'assistant' AND createdAt >= :since")
+    long sumIn(long since);
+
+    @Query("SELECT COALESCE(SUM(tokensOut), 0) FROM messages WHERE role = 'assistant' AND createdAt >= :since")
+    long sumOut(long since);
+
+    @Query("SELECT COUNT(*) FROM messages WHERE role = 'assistant' AND createdAt >= :since")
+    int replies(long since);
+
+    @Query("SELECT modelLabel AS label, SUM(tokensIn) AS tin, SUM(tokensOut) AS tout, COUNT(*) AS n "
+            + "FROM messages WHERE role = 'assistant' AND modelLabel IS NOT NULL AND createdAt >= :since "
+            + "GROUP BY modelLabel ORDER BY (SUM(tokensIn) + SUM(tokensOut)) DESC")
+    List<ModelUsage> byModel(long since);
+
+    @Query("SELECT createdAt AS createdAt, (tokensIn + tokensOut) AS total FROM messages "
+            + "WHERE role = 'assistant' AND createdAt >= :since")
+    List<TokenPoint> points(long since);
+
+    @Query("SELECT COALESCE(SUM(tokensIn + tokensOut), 0) FROM messages WHERE sessionId = :sid AND role = 'assistant'")
+    long sessionTokens(long sid);
 }

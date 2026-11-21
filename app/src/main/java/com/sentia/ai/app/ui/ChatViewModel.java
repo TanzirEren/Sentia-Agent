@@ -13,9 +13,11 @@ import androidx.lifecycle.MediatorLiveData;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.sentia.ai.app.data.KeyRotator;
+import com.sentia.ai.app.data.ProfileStore;
 import com.sentia.ai.app.data.ProviderStore;
 import com.sentia.ai.app.data.SettingsStore;
 import com.sentia.ai.app.data.db.AppDatabase;
+import com.sentia.ai.app.data.db.FolderEntity;
 import com.sentia.ai.app.data.db.MessageEntity;
 import com.sentia.ai.app.data.db.SessionEntity;
 import com.sentia.ai.app.model.Attachment;
@@ -74,6 +76,8 @@ public class ChatViewModel extends AndroidViewModel {
     private boolean flushPending;
     private volatile int lastRequestChars;
     private final Set<Integer> triedKeys = new HashSet<>();
+    private long pendingFolderId = 0;
+    private final LiveData<List<FolderEntity>> foldersLive;
 
     public ChatViewModel(@NonNull Application app) {
         super(app);
@@ -81,6 +85,7 @@ public class ChatViewModel extends AndroidViewModel {
         settings = SettingsStore.get(app);
         providers = ProviderStore.get(app);
         refreshSessions("");
+        foldersLive = db.folderDao().all();
     }
 
     private void refreshSessions(String q) {
@@ -99,6 +104,7 @@ public class ChatViewModel extends AndroidViewModel {
     public LiveData<Long> currentSession() { return currentSessionLive; }
     public LiveData<MessageEntity> editing() { return editing; }
     public LiveData<List<SessionEntity>> sessions() { return sessionsMediator; }
+    public LiveData<List<FolderEntity>> folders() { return foldersLive; }
 
     public void clearToast() { toast.setValue(null); }
 
@@ -147,6 +153,7 @@ public class ChatViewModel extends AndroidViewModel {
 
     public void newChat() {
         stop();
+        pendingFolderId = 0;
         sessionId = 0;
         currentSessionLive.setValue(0L);
         title.setValue("");
@@ -154,8 +161,16 @@ public class ChatViewModel extends AndroidViewModel {
         setList(new ArrayList<>());
     }
 
+    /** Starts an empty chat that will be saved inside the given project. */
+    public void newChatInFolder(FolderEntity f) {
+        newChat();
+        pendingFolderId = f.id;
+        title.setValue(f.name == null ? "" : f.name);
+    }
+
     public void openSession(final long id) {
         stop();
+        pendingFolderId = 0;
         io.execute(() -> {
             final SessionEntity s = db.sessionDao().get(id);
             final List<MessageEntity> l = db.messageDao().list(id);
@@ -186,6 +201,54 @@ public class ChatViewModel extends AndroidViewModel {
                 if (id == sessionId) newChat();
             });
         });
+    }
+
+
+    // ------------------------------------------------------------ projects (folders)
+
+    public void createFolder(final String name, final boolean openChat) {
+        io.execute(() -> {
+            long now = System.currentTimeMillis();
+            final FolderEntity f = new FolderEntity();
+            f.name = name;
+            f.createdAt = now;
+            f.updatedAt = now;
+            f.id = db.folderDao().insert(f);
+            if (openChat) main.post(() -> newChatInFolder(f));
+        });
+    }
+
+    public void createFolderAndMove(final String name, final long sid) {
+        io.execute(() -> {
+            long now = System.currentTimeMillis();
+            FolderEntity f = new FolderEntity();
+            f.name = name;
+            f.createdAt = now;
+            f.updatedAt = now;
+            long id = db.folderDao().insert(f);
+            db.sessionDao().moveToFolder(sid, id);
+        });
+    }
+
+    public void renameFolder(final long id, final String name) {
+        io.execute(() -> db.folderDao().rename(id, name, System.currentTimeMillis()));
+    }
+
+    public void setFolderInstructions(final long id, final String text) {
+        io.execute(() -> db.folderDao().setInstructions(id, text, System.currentTimeMillis()));
+    }
+
+    public void deleteFolder(final long id, final boolean deleteChats) {
+        io.execute(() -> {
+            if (deleteChats) db.sessionDao().deleteInFolder(id);
+            else db.sessionDao().clearFolder(id);
+            db.folderDao().delete(id);
+            main.post(this::validateCurrent);
+        });
+    }
+
+    public void moveSession(final long sid, final long folderId) {
+        io.execute(() -> db.sessionDao().moveToFolder(sid, folderId));
     }
 
     // ------------------------------------------------------------ editing
@@ -225,6 +288,8 @@ public class ChatViewModel extends AndroidViewModel {
         editing.setValue(null);
         final long editFrom = ed == null ? 0 : ed.id;
         final long sidIn = sessionId;
+        final long folderIn = pendingFolderId;
+        pendingFolderId = 0;
         final Provider p = selectedProvider();
         final String modelId = settings.selectedModelId();
         streaming.setValue(true);
@@ -240,6 +305,7 @@ public class ChatViewModel extends AndroidViewModel {
                     s.updatedAt = now;
                     s.providerId = p.id;
                     s.modelId = modelId;
+                    s.folderId = folderIn;
                     sid = db.sessionDao().insert(s);
                 }
                 if (editFrom != 0) db.messageDao().deleteFrom(sid, editFrom);
@@ -294,7 +360,16 @@ public class ChatViewModel extends AndroidViewModel {
     /** Runs on the io thread. Builds the request, inserts the empty reply, then starts streaming on main. */
     private void beginAssistant(final long sid, final Provider p, final String modelId) {
         List<MessageEntity> history = db.messageDao().list(sid);
-        final ChatRequest req = buildRequest(history, p, modelId);
+        String extra = "";
+        SessionEntity sess = db.sessionDao().get(sid);
+        if (sess != null && sess.folderId != 0) {
+            FolderEntity folder = db.folderDao().get(sess.folderId);
+            if (folder != null && folder.instructions != null && !folder.instructions.trim().isEmpty()) {
+                extra = "Instructions for the project \"" + folder.name + "\" (apply them to every reply in this chat):\n"
+                        + folder.instructions.trim();
+            }
+        }
+        final ChatRequest req = buildRequest(history, p, modelId, extra);
 
         MessageEntity a = new MessageEntity();
         a.sessionId = sid;
@@ -320,11 +395,11 @@ public class ChatViewModel extends AndroidViewModel {
         });
     }
 
-    private ChatRequest buildRequest(List<MessageEntity> history, Provider p, String modelId) {
+    private ChatRequest buildRequest(List<MessageEntity> history, Provider p, String modelId, String extra) {
         ChatRequest r = new ChatRequest();
         r.provider = p;
         r.modelId = modelId;
-        r.systemPrompt = composeSystemPrompt();
+        r.systemPrompt = composeSystemPrompt(extra);
         int ki = KeyRotator.pick(p);
         r.keyIndex = Math.max(ki, 0);
         r.apiKey = ki >= 0 ? KeyRotator.keyAt(p, ki) : "";
@@ -350,11 +425,14 @@ public class ChatViewModel extends AndroidViewModel {
         return r;
     }
 
-    private String composeSystemPrompt() {
+    private String composeSystemPrompt(String extra) {
         StringBuilder sb = new StringBuilder(settings.systemPrompt());
         String lang = settings.replyLanguage();
         if ("en".equals(lang)) sb.append("\n\nAlways reply in English.");
         else if ("bn".equals(lang)) sb.append("\n\nAlways reply in Bangla (Bengali).");
+        String profile = ProfileStore.get(getApplication()).promptBlock();
+        if (!profile.isEmpty()) sb.append("\n\n").append(profile);
+        if (extra != null && !extra.isEmpty()) sb.append("\n\n").append(extra);
         if (settings.includeDate()) {
             sb.append("\n\nCurrent date and time: ")
                     .append(new SimpleDateFormat("EEEE, d MMMM yyyy, HH:mm z", Locale.ENGLISH).format(new Date()));

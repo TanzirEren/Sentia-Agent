@@ -1,4 +1,4 @@
-# Sentia (v0.0.2) — Phase 1A + 1B
+# Sentia (v0.0.3) — Phase 1A + 1B + 1C
 
 Mobile AI agent app. Package: `com.sentia.ai.app`. Java + XML, Material 3, min SDK 24.
 
@@ -28,7 +28,18 @@ Mobile AI agent app. Package: `com.sentia.ai.app`. Java + XML, Material 3, min S
 - Fetch models from the provider (GET /models), FREE tag, filter, select all / select free / clear,
   add model IDs by hand, per-model on/off
 
-Drawer buttons for Profile and Token usage still show "next update" until 1C.
+## Added in 1C
+
+- Projects (folders) in the drawer: create, rename, delete (keep or delete chats), export as Markdown,
+  start a new chat inside a project, per-project instructions sent with every chat in it
+- Chat menu (three dots): rename, move to project, export (share as text, Markdown file, JSON file), delete
+- Profile page: photo, name, role, about, languages, skills, interests, current projects, tone, answer style,
+  custom instructions, on/off switch, preview of what the AI sees, import and export as JSON, clear.
+  Saved on the phone and added to the system prompt. The empty chat screen greets you by name.
+- Token page: current model, balance (OpenRouter and DeepSeek report it, others show the infinity icon),
+  usage for today / 7 days / 30 days / all time, input and output split, replies and average per reply,
+  7-day bar chart, usage by model, tokens in the open chat
+- Database upgraded to version 2 with a migration, so existing chats are kept
 
 ## Build
 

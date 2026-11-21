@@ -114,7 +114,7 @@
     <string name="lang_en">English</string>
     <string name="lang_bn">Bangla</string>
     <string name="set_include_date">Include date and time</string>
-    <string name="set_include_date_sub">Tells the model today's date</string>
+    <string name="set_include_date_sub">Tells the model today\'s date</string>
     <string name="set_temperature">Custom temperature</string>
     <string name="set_temperature_sub">Off lets the model use its own default</string>
     <string name="temperature">Temperature</string>

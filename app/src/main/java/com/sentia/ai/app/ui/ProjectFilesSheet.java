@@ -27,6 +27,7 @@ public final class ProjectFilesSheet {
         final BottomSheetDialog d = new BottomSheetDialog(act);
         final View v = LayoutInflater.from(act).inflate(R.layout.sheet_project_files, null);
         final LinearLayout list = v.findViewById(R.id.filesList);
+        list.setSaveFromParentEnabled(false);
         final TextView empty = v.findViewById(R.id.tvFilesEmpty);
         v.findViewById(R.id.btnAddFiles).setOnClickListener(x -> onAdd.run());
 

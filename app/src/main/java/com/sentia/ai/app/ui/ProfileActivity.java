@@ -74,6 +74,7 @@ public class ProfileActivity extends AppCompatActivity {
         d = store.data();
         inf = LayoutInflater.from(this);
         list = findViewById(R.id.profileList);
+        list.setSaveFromParentEnabled(false); // fields share view ids
         findViewById(R.id.btnBack).setOnClickListener(v -> finish());
 
         pickAvatar = registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> {
@@ -143,6 +144,7 @@ public class ProfileActivity extends AppCompatActivity {
 
         header(R.string.prof_projects);
         projectsBox = new LinearLayout(this);
+        projectsBox.setSaveFromParentEnabled(false);
         projectsBox.setOrientation(LinearLayout.VERTICAL);
         list.addView(projectsBox);
         renderProjects();

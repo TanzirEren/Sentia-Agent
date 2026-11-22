@@ -62,6 +62,8 @@ public class SettingsActivity extends AppCompatActivity {
         providers = ProviderStore.get(this);
         inf = LayoutInflater.from(this);
         list = findViewById(R.id.settingsList);
+        // Rows are built in code and share the same view ids. Saved view state must never be shared between them.
+        list.setSaveFromParentEnabled(false);
         findViewById(R.id.btnBack).setOnClickListener(v -> finish());
 
         exportJson = registerForActivityResult(new ActivityResultContracts.CreateDocument("application/json"), uri -> {
@@ -286,6 +288,7 @@ public class SettingsActivity extends AppCompatActivity {
         final TextView val = v.findViewById(R.id.tvSliderValue);
         final TextView prev = v.findViewById(R.id.tvSliderPreview);
         Slider s = v.findViewById(R.id.sliderSet);
+        s.setSaveEnabled(false);
         s.setValueFrom(min);
         s.setValueTo(max);
         s.setStepSize(step);
@@ -299,7 +302,7 @@ public class SettingsActivity extends AppCompatActivity {
         s.addOnChangeListener((sl, nv, fromUser) -> {
             val.setText(fmt.f(nv));
             if (preview) prev.setTextSize(nv);
-            cb.changed(nv, fromUser);
+            if (fromUser) cb.changed(nv, true); // never save values that were not set by the user
         });
         list.addView(v);
         return v;

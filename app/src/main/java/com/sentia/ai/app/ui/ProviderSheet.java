@@ -119,6 +119,7 @@ public final class ProviderSheet {
             etManual = root.findViewById(R.id.etManualModels);
             etFilter = root.findViewById(R.id.etModelFilter);
             llKeys = root.findViewById(R.id.llKeys);
+            llKeys.setSaveFromParentEnabled(false); // key fields share view ids
             pb = root.findViewById(R.id.pbFetch);
             rv = root.findViewById(R.id.rvEditModels);
 

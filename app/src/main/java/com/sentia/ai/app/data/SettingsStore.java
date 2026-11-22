@@ -24,7 +24,22 @@ public class SettingsStore {
         p = c.getSharedPreferences("sentia_settings", Context.MODE_PRIVATE);
     }
 
-    public float textSizeSp() { return p.getFloat("text_size", 14f); }
+    public static final float TEXT_MIN = 11f, TEXT_MAX = 20f;
+
+    /** Always a readable size. A bad stored value (for example from an old state restore bug) is repaired. */
+    public float textSizeSp() {
+        float v;
+        try {
+            v = p.getFloat("text_size", 14f);
+        } catch (ClassCastException e) {
+            v = 14f;
+        }
+        if (Float.isNaN(v) || v < TEXT_MIN || v > TEXT_MAX) {
+            v = 14f;
+            p.edit().putFloat("text_size", v).apply();
+        }
+        return v;
+    }
     public void setTextSizeSp(float v) { p.edit().putFloat("text_size", v).apply(); }
 
     /** 0 = system, 1 = light, 2 = dark */
@@ -96,14 +111,23 @@ public class SettingsStore {
     public boolean temperatureEnabled() { return p.getBoolean("temp_enabled", false); }
     public void setTemperatureEnabled(boolean v) { p.edit().putBoolean("temp_enabled", v).apply(); }
 
-    public float temperature() { return p.getFloat("temperature", 0.7f); }
+    public float temperature() {
+        float v = p.getFloat("temperature", 0.7f);
+        return (Float.isNaN(v) || v < 0f || v > 2f) ? 0.7f : v;
+    }
     public void setTemperature(float v) { p.edit().putFloat("temperature", v).apply(); }
 
     /** 0 means "use the model default" */
-    public int maxTokens() { return p.getInt("max_tokens", 0); }
+    public int maxTokens() {
+        int v = p.getInt("max_tokens", 0);
+        return (v > 0 && v < 64) ? 0 : v; // a tiny limit would cut every reply
+    }
     public void setMaxTokens(int v) { p.edit().putInt("max_tokens", v).apply(); }
 
-    public int contextChars() { return p.getInt("context_chars", 120000); }
+    public int contextChars() {
+        int v = p.getInt("context_chars", 120000);
+        return v < 4000 ? 120000 : v;
+    }
     public void setContextChars(int v) { p.edit().putInt("context_chars", v).apply(); }
 
     public void resetAll() {

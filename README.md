@@ -1,4 +1,4 @@
-# Sentia (v0.0.4) — Phase 1A + 1B + 1C + 1D
+# Sentia (v0.0.4.1) — Phase 1A + 1B + 1C + 1D
 
 Mobile AI agent app. Package: `com.sentia.ai.app`. Java + XML, Material 3, min SDK 24.
 
@@ -41,6 +41,14 @@ Mobile AI agent app. Package: `com.sentia.ai.app`. Java + XML, Material 3, min S
   7-day bar chart, usage by model, tokens in the open chat
 - Database upgraded to version 2 with a migration, so existing chats are kept
 
+
+## Fix in 0.0.4.1
+
+- Chat text was almost invisible (about 1 sp). Cause: the settings rows share the same view ids, and when
+  Settings was recreated (for example after changing the theme) Android copied one slider value into another,
+  so the Text size slider got the Temperature value. Fixed: saved state is no longer shared between rows,
+  values are saved only when the user moves a slider, and bad stored values are repaired automatically.
+  The same protection was added to Profile fields, API key fields and the project files sheet.
 
 ## Added in 1D (v0.0.4)
 

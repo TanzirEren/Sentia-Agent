@@ -10,8 +10,8 @@ android {
         applicationId "com.sentia.ai.app"
         minSdk 24
         targetSdk 34
-        versionCode 4
-        versionName "0.0.4"
+        versionCode 5
+        versionName "0.0.4.1"
     }
 
     // Release signing: values come from environment variables (set by GitHub Actions secrets).

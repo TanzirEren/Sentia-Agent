@@ -1,6 +1,7 @@
 package com.sentia.ai.app.data.db;
 
 import android.content.Context;
+import android.database.Cursor;
 
 import androidx.annotation.NonNull;
 import androidx.room.Database;
@@ -9,7 +10,7 @@ import androidx.room.RoomDatabase;
 import androidx.room.migration.Migration;
 import androidx.sqlite.db.SupportSQLiteDatabase;
 
-@Database(entities = {SessionEntity.class, MessageEntity.class, FolderEntity.class}, version = 2, exportSchema = false)
+@Database(entities = {SessionEntity.class, MessageEntity.class, FolderEntity.class, ProjectFileEntity.class}, version = 3, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     private static AppDatabase instance;
 
@@ -18,6 +19,8 @@ public abstract class AppDatabase extends RoomDatabase {
     public abstract MessageDao messageDao();
 
     public abstract FolderDao folderDao();
+
+    public abstract ProjectFileDao projectFileDao();
 
     /** 1 to 2: adds project folders. Existing chats are kept. */
     static final Migration MIGRATION_1_2 = new Migration(1, 2) {
@@ -30,13 +33,57 @@ public abstract class AppDatabase extends RoomDatabase {
                     + "`updatedAt` INTEGER NOT NULL, "
                     + "`instructions` TEXT, "
                     + "`color` INTEGER NOT NULL)");
+            // Safety: make sure the project columns exist on the chats table.
+            addColumnIfMissing(db, "sessions", "folderId", "INTEGER NOT NULL DEFAULT 0");
+            addColumnIfMissing(db, "sessions", "pinned", "INTEGER NOT NULL DEFAULT 0");
         }
     };
+
+    /** 2 to 3: project icon, description, pin, memory, commands, plan-first, and the project files table. */
+    static final Migration MIGRATION_2_3 = new Migration(2, 3) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            addColumnIfMissing(db, "folders", "description", "TEXT");
+            addColumnIfMissing(db, "folders", "icon", "INTEGER NOT NULL DEFAULT 0");
+            addColumnIfMissing(db, "folders", "pinned", "INTEGER NOT NULL DEFAULT 0");
+            addColumnIfMissing(db, "folders", "memory", "TEXT");
+            addColumnIfMissing(db, "folders", "commands", "TEXT");
+            addColumnIfMissing(db, "folders", "planFirst", "INTEGER NOT NULL DEFAULT 0");
+            db.execSQL("CREATE TABLE IF NOT EXISTS `project_files` ("
+                    + "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, "
+                    + "`folderId` INTEGER NOT NULL, "
+                    + "`name` TEXT, "
+                    + "`mime` TEXT, "
+                    + "`path` TEXT, "
+                    + "`size` INTEGER NOT NULL, "
+                    + "`addedAt` INTEGER NOT NULL, "
+                    + "`enabled` INTEGER NOT NULL, "
+                    + "FOREIGN KEY(`folderId`) REFERENCES `folders`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )");
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_project_files_folderId` ON `project_files` (`folderId`)");
+        }
+    };
+
+    private static void addColumnIfMissing(SupportSQLiteDatabase db, String table, String column, String ddl) {
+        boolean found = false;
+        Cursor c = db.query("PRAGMA table_info(`" + table + "`)");
+        try {
+            int nameIdx = c.getColumnIndex("name");
+            while (c.moveToNext()) {
+                if (column.equals(c.getString(nameIdx))) {
+                    found = true;
+                    break;
+                }
+            }
+        } finally {
+            c.close();
+        }
+        if (!found) db.execSQL("ALTER TABLE `" + table + "` ADD COLUMN `" + column + "` " + ddl);
+    }
 
     public static synchronized AppDatabase get(Context c) {
         if (instance == null) {
             instance = Room.databaseBuilder(c.getApplicationContext(), AppDatabase.class, "sentia.db")
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .fallbackToDestructiveMigrationOnDowngrade()
                     .build();
         }

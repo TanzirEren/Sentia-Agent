@@ -73,4 +73,11 @@
         <item name="android:textSize">12sp</item>
         <item name="android:textColor">@color/ink_muted</item>
     </style>
+
+    <!-- Launcher splash: plain background, the animated logo is drawn by SplashActivity -->
+    <style name="Theme.Sentia.Splash" parent="Theme.Sentia">
+        <item name="android:windowBackground">@color/surface</item>
+        <item name="android:statusBarColor">@color/surface</item>
+        <item name="android:navigationBarColor">@color/surface</item>
+    </style>
 </resources>

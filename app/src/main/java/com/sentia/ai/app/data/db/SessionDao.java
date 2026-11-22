@@ -55,4 +55,13 @@ public interface SessionDao {
 
     @Query("SELECT * FROM sessions WHERE folderId = :folderId ORDER BY updatedAt DESC")
     List<SessionEntity> inFolder(long folderId);
+
+    @Query("SELECT * FROM sessions WHERE folderId = :folderId ORDER BY pinned DESC, updatedAt DESC")
+    LiveData<List<SessionEntity>> inFolderLive(long folderId);
+
+    @Query("UPDATE sessions SET pinned = :pinned WHERE id = :id")
+    void setPinned(long id, boolean pinned);
+
+    @Query("SELECT folderId AS folderId, COUNT(*) AS n FROM sessions WHERE folderId != 0 GROUP BY folderId")
+    LiveData<List<FolderCount>> folderCounts();
 }

@@ -13,12 +13,14 @@ import androidx.lifecycle.MediatorLiveData;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.sentia.ai.app.data.KeyRotator;
+import com.sentia.ai.app.data.ProjectRepo;
 import com.sentia.ai.app.data.ProfileStore;
 import com.sentia.ai.app.data.ProviderStore;
 import com.sentia.ai.app.data.SettingsStore;
 import com.sentia.ai.app.data.db.AppDatabase;
 import com.sentia.ai.app.data.db.FolderEntity;
 import com.sentia.ai.app.data.db.MessageEntity;
+import com.sentia.ai.app.data.db.ProjectFileEntity;
 import com.sentia.ai.app.data.db.SessionEntity;
 import com.sentia.ai.app.model.Attachment;
 import com.sentia.ai.app.model.ModelEntry;
@@ -31,6 +33,8 @@ import com.sentia.ai.app.net.LlmClient;
 import com.sentia.ai.app.net.StreamListener;
 import com.sentia.ai.app.util.AttachmentUtil;
 import com.sentia.ai.app.util.ImageUtil;
+import com.sentia.ai.app.util.MemoryTags;
+import com.sentia.ai.app.util.ProjectContext;
 import com.sentia.ai.app.util.TokenEstimator;
 
 import java.lang.reflect.Type;
@@ -77,6 +81,9 @@ public class ChatViewModel extends AndroidViewModel {
     private volatile int lastRequestChars;
     private final Set<Integer> triedKeys = new HashSet<>();
     private long pendingFolderId = 0;
+    private long streamFolderId = 0;
+    private final MutableLiveData<Long> currentFolderLive = new MutableLiveData<>(0L);
+    private final ProjectRepo repo;
     private final LiveData<List<FolderEntity>> foldersLive;
 
     public ChatViewModel(@NonNull Application app) {
@@ -84,8 +91,9 @@ public class ChatViewModel extends AndroidViewModel {
         db = AppDatabase.get(app);
         settings = SettingsStore.get(app);
         providers = ProviderStore.get(app);
+        repo = ProjectRepo.get(app);
         refreshSessions("");
-        foldersLive = db.folderDao().all();
+        foldersLive = db.folderDao().allRecent();
     }
 
     private void refreshSessions(String q) {
@@ -105,6 +113,9 @@ public class ChatViewModel extends AndroidViewModel {
     public LiveData<MessageEntity> editing() { return editing; }
     public LiveData<List<SessionEntity>> sessions() { return sessionsMediator; }
     public LiveData<List<FolderEntity>> folders() { return foldersLive; }
+    /** Id of the project the open chat belongs to, 0 when it is in no project. */
+    public LiveData<Long> currentFolder() { return currentFolderLive; }
+    public long currentFolderId() { Long v = currentFolderLive.getValue(); return v == null ? 0 : v; }
 
     public void clearToast() { toast.setValue(null); }
 
@@ -155,6 +166,7 @@ public class ChatViewModel extends AndroidViewModel {
         stop();
         pendingFolderId = 0;
         sessionId = 0;
+        currentFolderLive.setValue(0L);
         currentSessionLive.setValue(0L);
         title.setValue("");
         editing.setValue(null);
@@ -165,7 +177,16 @@ public class ChatViewModel extends AndroidViewModel {
     public void newChatInFolder(FolderEntity f) {
         newChat();
         pendingFolderId = f.id;
+        currentFolderLive.setValue(f.id);
         title.setValue(f.name == null ? "" : f.name);
+    }
+
+    /** Starts an empty chat inside a project, looked up by id (used from the project page). */
+    public void newChatInFolderId(final long folderId) {
+        io.execute(() -> {
+            final FolderEntity f = db.folderDao().get(folderId);
+            if (f != null) main.post(() -> newChatInFolder(f));
+        });
     }
 
     public void openSession(final long id) {
@@ -177,6 +198,7 @@ public class ChatViewModel extends AndroidViewModel {
             main.post(() -> {
                 if (s == null) return;
                 sessionId = id;
+                currentFolderLive.setValue(s.folderId);
                 currentSessionLive.setValue(id);
                 title.setValue(s.title == null ? "" : s.title);
                 editing.setValue(null);
@@ -206,49 +228,27 @@ public class ChatViewModel extends AndroidViewModel {
 
     // ------------------------------------------------------------ projects (folders)
 
-    public void createFolder(final String name, final boolean openChat) {
-        io.execute(() -> {
-            long now = System.currentTimeMillis();
-            final FolderEntity f = new FolderEntity();
-            f.name = name;
-            f.createdAt = now;
-            f.updatedAt = now;
-            f.id = db.folderDao().insert(f);
-            if (openChat) main.post(() -> newChatInFolder(f));
+    public void createFolder(String name, String desc, int icon, final boolean openChat) {
+        repo.create(name, desc, icon, f -> {
+            if (openChat) newChatInFolder(f);
         });
     }
 
-    public void createFolderAndMove(final String name, final long sid) {
-        io.execute(() -> {
-            long now = System.currentTimeMillis();
-            FolderEntity f = new FolderEntity();
-            f.name = name;
-            f.createdAt = now;
-            f.updatedAt = now;
-            long id = db.folderDao().insert(f);
-            db.sessionDao().moveToFolder(sid, id);
-        });
-    }
-
-    public void renameFolder(final long id, final String name) {
-        io.execute(() -> db.folderDao().rename(id, name, System.currentTimeMillis()));
-    }
-
-    public void setFolderInstructions(final long id, final String text) {
-        io.execute(() -> db.folderDao().setInstructions(id, text, System.currentTimeMillis()));
+    public void createFolderAndMove(String name, String desc, int icon, final long sid) {
+        repo.create(name, desc, icon, f -> moveSession(sid, f.id));
     }
 
     public void deleteFolder(final long id, final boolean deleteChats) {
-        io.execute(() -> {
-            if (deleteChats) db.sessionDao().deleteInFolder(id);
-            else db.sessionDao().clearFolder(id);
-            db.folderDao().delete(id);
-            main.post(this::validateCurrent);
-        });
+        repo.delete(id, deleteChats, this::validateCurrent);
     }
 
     public void moveSession(final long sid, final long folderId) {
-        io.execute(() -> db.sessionDao().moveToFolder(sid, folderId));
+        repo.moveSession(sid, folderId);
+        if (sid == sessionId) currentFolderLive.setValue(folderId);
+    }
+
+    public void setSessionPinned(long sid, boolean pinned) {
+        repo.setSessionPinned(sid, pinned);
     }
 
     // ------------------------------------------------------------ editing
@@ -361,14 +361,17 @@ public class ChatViewModel extends AndroidViewModel {
     private void beginAssistant(final long sid, final Provider p, final String modelId) {
         List<MessageEntity> history = db.messageDao().list(sid);
         String extra = "";
+        long folderOfChat = 0;
         SessionEntity sess = db.sessionDao().get(sid);
         if (sess != null && sess.folderId != 0) {
             FolderEntity folder = db.folderDao().get(sess.folderId);
-            if (folder != null && folder.instructions != null && !folder.instructions.trim().isEmpty()) {
-                extra = "Instructions for the project \"" + folder.name + "\" (apply them to every reply in this chat):\n"
-                        + folder.instructions.trim();
+            if (folder != null) {
+                folderOfChat = folder.id;
+                List<ProjectFileEntity> files = db.projectFileDao().list(folder.id);
+                extra = ProjectContext.build(folder, files, lastUserText(history));
             }
         }
+        final long folderForStream = folderOfChat;
         final ChatRequest req = buildRequest(history, p, modelId, extra);
 
         MessageEntity a = new MessageEntity();
@@ -386,6 +389,8 @@ public class ChatViewModel extends AndroidViewModel {
         final long msgId = a.id;
         main.post(() -> {
             sessionId = sid;
+            streamFolderId = folderForStream;
+            currentFolderLive.setValue(s == null ? 0L : s.folderId);
             currentSessionLive.setValue(sid);
             if (s != null) title.setValue(s.title == null ? "" : s.title);
             setList(all);
@@ -393,6 +398,20 @@ public class ChatViewModel extends AndroidViewModel {
             triedKeys.add(req.keyIndex);
             startStream(req, msgId);
         });
+    }
+
+    /** The last two user messages joined, used to pick the matching project file excerpts. */
+    private static String lastUserText(List<MessageEntity> history) {
+        StringBuilder sb = new StringBuilder();
+        int found = 0;
+        for (int i = history.size() - 1; i >= 0 && found < 2; i--) {
+            MessageEntity m = history.get(i);
+            if ("user".equals(m.role) && m.content != null) {
+                sb.append(m.content).append('\n');
+                found++;
+            }
+        }
+        return sb.toString();
     }
 
     private ChatRequest buildRequest(List<MessageEntity> history, Provider p, String modelId, String extra) {
@@ -563,9 +582,15 @@ public class ChatViewModel extends AndroidViewModel {
         final long sid = sessionId;
         if (sid == 0) return;
         io.execute(() -> {
-            if (db.sessionDao().get(sid) == null) {
+            final SessionEntity cur = db.sessionDao().get(sid);
+            if (cur == null) {
                 main.post(() -> {
                     if (sessionId == sid) newChat();
+                });
+            } else {
+                final long fid = cur.folderId;
+                main.post(() -> {
+                    if (sessionId == sid) currentFolderLive.setValue(fid);
                 });
             }
         });
@@ -586,7 +611,7 @@ public class ChatViewModel extends AndroidViewModel {
         for (int i = l.size() - 1; i >= 0; i--) {
             if (l.get(i).id == streamMsgId) {
                 MessageEntity c = l.get(i).copy();
-                c.content = sb.toString();
+                c.content = streamFolderId != 0 ? MemoryTags.strip(sb.toString()) : sb.toString();
                 l.set(i, c);
                 setList(l);
                 return;
@@ -608,7 +633,15 @@ public class ChatViewModel extends AndroidViewModel {
     private void finishStream(int status, String error) {
         call = null;
         streamToken++;
-        final String content = sb.toString();
+        final String raw = sb.toString();
+        final String content = streamFolderId != 0 ? MemoryTags.strip(raw) : raw;
+        if (streamFolderId != 0 && error == null) {
+            List<String> notes = MemoryTags.extract(raw);
+            if (!notes.isEmpty()) {
+                repo.appendMemory(streamFolderId, notes);
+                toast.setValue(getApplication().getString(com.sentia.ai.app.R.string.memory_saved));
+            }
+        }
         final boolean isError = error != null;
         List<MessageEntity> l = new ArrayList<>(cur());
         int idx = -1;

@@ -1,4 +1,4 @@
-# Sentia (v0.0.3) — Phase 1A + 1B + 1C
+# Sentia (v0.0.4) — Phase 1A + 1B + 1C + 1D
 
 Mobile AI agent app. Package: `com.sentia.ai.app`. Java + XML, Material 3, min SDK 24.
 
@@ -41,6 +41,32 @@ Mobile AI agent app. Package: `com.sentia.ai.app`. Java + XML, Material 3, min S
   7-day bar chart, usage by model, tokens in the open chat
 - Database upgraded to version 2 with a migration, so existing chats are kept
 
+
+## Added in 1D (v0.0.4)
+
+- New brand: the S-prompt logo. App icon (adaptive, round, themed monochrome), animated splash screen
+  (shell pops in, the prompt slides in, the cursor blinks, SENTIA in Poppins), logo on the empty chat
+  screen and in the side menu. Logo colors follow the theme: ivory in dark mode, black in light mode.
+- Projects rebuilt. Side menu: New chat, then Projects (opens the Projects page), then pinned projects
+  with their icon, pinned chats, and the other chats grouped by date.
+- Projects page: project cards with icon, description, chat and file counts, search, + to create.
+  Create or edit dialog: name, description and one of 30 ready-made icons.
+- Project page: Files box (txt, md, py and other text files), Instructions box, tools row
+  (Memory, Commands, Plan first, Brief), context size, chats list (pinned first), New chat button,
+  pin project, edit, export, delete. Chats can be pinned, renamed, moved or deleted here.
+- 5 advanced project features:
+  1. Smart file context: small file sets are sent in full; large sets are indexed and only the
+     excerpts that match your question (BM25 ranking, offline) are sent.
+  2. Project memory: notes the AI saves by itself (hidden tag) plus notes you write. Sent in every chat.
+  3. Slash commands: 6 built-in (/plan /review /explain /fix /tests /summarize) and your own, with
+     suggestion chips while you type / in a project chat.
+  4. Plan-first mode: the AI proposes a short plan and waits for your OK before big tasks.
+  5. Project brief: the AI summarizes the project from its chats; you choose whether to save it to memory.
+- Pin chats from the side menu (three dots) as well.
+- Room database version 3 with an exact migration 2 to 3 (new project columns and project_files table).
+  Export your chats first (Settings > Export all chats) before updating.
+- Fonts: Poppins (OFL) for the splash screen. See licenses/.
+
 ## Build
 
 Push to GitHub and run the **Build Sentia APK** workflow, or open in Android Studio.
@@ -61,3 +87,4 @@ app/src/main/java/com/sentia/ai/app/
 ## Licenses
 
 Hind Siliguri font: SIL Open Font License (`licenses/OFL-HindSiliguri.txt`).
+- Poppins font (splash screen): SIL Open Font License 1.1, see `licenses/OFL-Poppins.txt`

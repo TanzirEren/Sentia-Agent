@@ -6,6 +6,7 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.speech.RecognizerIntent;
 import android.text.Editable;
@@ -25,6 +26,8 @@ import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
+import androidx.core.graphics.drawable.DrawableCompat;
 import androidx.core.view.GravityCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
@@ -45,6 +48,10 @@ import com.sentia.ai.app.data.db.SessionEntity;
 import com.sentia.ai.app.model.Attachment;
 import com.sentia.ai.app.model.Provider;
 import com.sentia.ai.app.model.SavedPrompt;
+import com.sentia.ai.app.model.ProjectCommand;
+import com.sentia.ai.app.data.ProjectRepo;
+import com.sentia.ai.app.util.ProjectIcons;
+import com.sentia.ai.app.util.Slash;
 import com.sentia.ai.app.util.AttachmentUtil;
 import com.sentia.ai.app.util.ChatExporter;
 import com.sentia.ai.app.util.TokenEstimator;
@@ -56,6 +63,8 @@ import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
     private static final int MAX_ATTACHMENTS = 8;
+    public static final String EXTRA_OPEN_SESSION = "open_session";
+    public static final String EXTRA_NEW_CHAT_IN = "new_chat_in";
 
     private ChatViewModel vm;
     private SettingsStore settings;
@@ -74,10 +83,10 @@ public class MainActivity extends AppCompatActivity {
     private List<SessionEntity> lastSessions = new ArrayList<>();
     private String searchText = "";
     private long exportSessionId;
-    private long exportFolderId;
-    private String exportFolderName = "";
     private TextView tvGreeting;
-    private ActivityResultLauncher<String> exportSessionMd, exportSessionJson, exportFolderMd;
+    private RecyclerView rvSlash;
+    private SlashAdapter slashAdapter;
+    private ActivityResultLauncher<String> exportSessionMd, exportSessionJson;
     private AttachmentAdapter attAdapter;
     private LinearLayoutManager lm;
 
@@ -120,12 +129,32 @@ public class MainActivity extends AppCompatActivity {
         updateGreeting();
         updateSendState();
         handleShareIntent(getIntent());
+        handleProjectIntent(getIntent());
+    }
+
+    private void handleProjectIntent(Intent intent) {
+        if (intent == null) return;
+        long openId = intent.getLongExtra(EXTRA_OPEN_SESSION, 0);
+        long newIn = intent.getLongExtra(EXTRA_NEW_CHAT_IN, 0);
+        if (openId != 0) {
+            vm.openSession(openId);
+        } else if (newIn != 0) {
+            pending.clear();
+            refreshAttachments();
+            vm.newChatInFolderId(newIn);
+        } else {
+            return;
+        }
+        intent.removeExtra(EXTRA_OPEN_SESSION);
+        intent.removeExtra(EXTRA_NEW_CHAT_IN);
+        drawer.closeDrawer(GravityCompat.START);
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         handleShareIntent(intent);
+        handleProjectIntent(intent);
     }
 
     @Override
@@ -161,6 +190,7 @@ public class MainActivity extends AppCompatActivity {
         btnScrollDown = findViewById(R.id.btnScrollDown);
         btnSend = findViewById(R.id.btnSend);
         tvGreeting = findViewById(R.id.tvGreeting);
+        rvSlash = findViewById(R.id.rvSlash);
     }
 
     private void registerLaunchers() {
@@ -188,9 +218,6 @@ public class MainActivity extends AppCompatActivity {
         });
         exportSessionJson = registerForActivityResult(new ActivityResultContracts.CreateDocument("application/json"), uri -> {
             if (uri != null) runSessionExport(uri, false);
-        });
-        exportFolderMd = registerForActivityResult(new ActivityResultContracts.CreateDocument("text/markdown"), uri -> {
-            if (uri != null) runFolderExport(uri);
         });
     }
 
@@ -244,6 +271,10 @@ public class MainActivity extends AppCompatActivity {
             drawer.openDrawer(GravityCompat.START);
         });
         findViewById(R.id.btnNewChat).setOnClickListener(v -> startNewChat());
+        findViewById(R.id.rowProjects).setOnClickListener(v -> {
+            startActivity(new Intent(this, ProjectsActivity.class));
+            drawer.closeDrawer(GravityCompat.START);
+        });
         findViewById(R.id.rowNewChat).setOnClickListener(v -> {
             startNewChat();
             drawer.closeDrawer(GravityCompat.START);
@@ -262,13 +293,16 @@ public class MainActivity extends AppCompatActivity {
             }
 
             @Override
-            public void onFolderMenu(View anchor, FolderEntity f) {
-                showFolderMenu(anchor, f);
+            public void onOpenProject(FolderEntity f) {
+                Intent i = new Intent(MainActivity.this, ProjectActivity.class);
+                i.putExtra(ProjectActivity.EXTRA_ID, f.id);
+                startActivity(i);
+                drawer.closeDrawer(GravityCompat.START);
             }
 
             @Override
-            public void onAddFolder() {
-                promptNewProject();
+            public void onProjectMenu(View anchor, FolderEntity f) {
+                showProjectMenu(anchor, f);
             }
         });
         rvSessions.setLayoutManager(new LinearLayoutManager(this));
@@ -302,11 +336,19 @@ public class MainActivity extends AppCompatActivity {
         rvAtt.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
         rvAtt.setAdapter(attAdapter);
 
+        slashAdapter = new SlashAdapter(item -> {
+            etInput.setText("/" + item.name + " ");
+            etInput.setSelection(etInput.getText().length());
+        });
+        rvSlash.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
+        rvSlash.setAdapter(slashAdapter);
+
         etInput.addTextChangedListener(new SimpleWatcher() {
             @Override
             public void afterTextChanged(Editable s) {
                 updateSendState();
                 updateHint();
+                updateSlash();
             }
         });
         etInput.setOnKeyListener((v, keyCode, event) -> {
@@ -359,8 +401,14 @@ public class MainActivity extends AppCompatActivity {
         vm.folders().observe(this, l -> {
             lastFolders = l == null ? new ArrayList<>() : l;
             rebuildDrawer();
+            updateProjectTag();
+            updateSlash();
         });
         vm.currentSession().observe(this, id -> drawerAdapter.setCurrent(id == null ? 0 : id));
+        vm.currentFolder().observe(this, id -> {
+            updateProjectTag();
+            updateSlash();
+        });
         vm.editing().observe(this, m -> editBanner.setVisibility(m == null ? View.GONE : View.VISIBLE));
         vm.toast().observe(this, msg -> {
             if (msg != null) {
@@ -408,6 +456,10 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         if (settings.haptics()) btnSend.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY);
+        FolderEntity cf = currentFolderEntity();
+        if (cf != null) {
+            text = Slash.expand(text, Slash.available(this, ProjectRepo.parseCommands(cf.commands)));
+        }
         vm.send(text, new ArrayList<>(pending));
         etInput.setText("");
         settings.setDraft("");
@@ -545,13 +597,15 @@ public class MainActivity extends AppCompatActivity {
 
     private void showSessionMenu(View anchor, final SessionEntity s) {
         PopupMenu pm = new PopupMenu(this, anchor);
-        pm.getMenu().add(0, 1, 0, R.string.rename);
-        pm.getMenu().add(0, 2, 1, R.string.act_move_project);
-        pm.getMenu().add(0, 3, 2, R.string.act_export);
-        pm.getMenu().add(0, 4, 3, R.string.delete);
+        pm.getMenu().add(0, 5, 0, s.pinned ? R.string.act_unpin : R.string.act_pin);
+        pm.getMenu().add(0, 1, 1, R.string.rename);
+        pm.getMenu().add(0, 2, 2, R.string.act_move_project);
+        pm.getMenu().add(0, 3, 3, R.string.act_export);
+        pm.getMenu().add(0, 4, 4, R.string.delete);
         pm.setOnMenuItemClickListener(item -> {
             int id = item.getItemId();
-            if (id == 1) showRename(s);
+            if (id == 5) vm.setSessionPinned(s.id, !s.pinned);
+            else if (id == 1) showRename(s);
             else if (id == 2) chooseFolderFor(s);
             else if (id == 3) exportChatSheet(s);
             else if (id == 4) confirmDelete(s);
@@ -564,7 +618,7 @@ public class MainActivity extends AppCompatActivity {
         List<ActionSheet.Row> rows = new ArrayList<>();
         for (final FolderEntity f : lastFolders) {
             if (f.id == s.folderId) continue;
-            rows.add(new ActionSheet.Row(R.drawable.ic_folder, f.name == null ? "" : f.name,
+            rows.add(new ActionSheet.Row(ProjectIcons.res(f.icon), f.name == null ? "" : f.name,
                     () -> vm.moveSession(s.id, f.id)));
         }
         if (s.folderId != 0) {
@@ -599,22 +653,10 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void runFolderExport(final android.net.Uri uri) {
-        final long fid = exportFolderId;
-        final String name = exportFolderName;
-        io.execute(() -> {
-            final boolean ok = ChatExporter.exportFolder(getApplicationContext(), uri, fid, name, true);
-            runOnUiThread(() -> Toast.makeText(this, ok ? R.string.export_done : R.string.export_failed, Toast.LENGTH_SHORT).show());
-        });
-    }
-
-    private void showFolderMenu(View anchor, final FolderEntity f) {
+    private void showProjectMenu(View anchor, final FolderEntity f) {
         PopupMenu pm = new PopupMenu(this, anchor);
         pm.getMenu().add(0, 1, 0, R.string.act_new_chat_here);
-        pm.getMenu().add(0, 2, 1, R.string.rename);
-        pm.getMenu().add(0, 3, 2, R.string.act_instructions);
-        pm.getMenu().add(0, 4, 3, R.string.act_export);
-        pm.getMenu().add(0, 5, 4, R.string.delete);
+        pm.getMenu().add(0, 2, 1, R.string.act_unpin_project);
         pm.setOnMenuItemClickListener(item -> {
             int id = item.getItemId();
             if (id == 1) {
@@ -623,89 +665,57 @@ public class MainActivity extends AppCompatActivity {
                 vm.newChatInFolder(f);
                 drawer.closeDrawer(GravityCompat.START);
             } else if (id == 2) {
-                renameFolderDialog(f);
-            } else if (id == 3) {
-                editInstructions(f);
-            } else if (id == 4) {
-                exportFolderId = f.id;
-                exportFolderName = f.name == null ? "" : f.name;
-                exportFolderMd.launch(safeName(f.name, "sentia-project") + ".md");
-            } else if (id == 5) {
-                confirmDeleteFolder(f);
+                ProjectRepo.get(this).setPinned(f.id, false);
             }
             return true;
         });
         pm.show();
     }
 
-    private void promptNewProject() {
-        View v = getLayoutInflater().inflate(R.layout.dialog_rename, null);
-        final EditText et = v.findViewById(R.id.etRename);
-        et.setHint(R.string.project_name);
-        new MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.new_project)
-                .setView(v)
-                .setNegativeButton(R.string.cancel, null)
-                .setPositiveButton(R.string.save, (d, w) -> {
-                    String t = et.getText().toString().trim();
-                    if (!t.isEmpty()) vm.createFolder(t, false);
-                })
-                .show();
-    }
-
     private void promptNewProjectAndMove(final SessionEntity s) {
-        View v = getLayoutInflater().inflate(R.layout.dialog_rename, null);
-        final EditText et = v.findViewById(R.id.etRename);
-        et.setHint(R.string.project_name);
-        new MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.new_project)
-                .setView(v)
-                .setNegativeButton(R.string.cancel, null)
-                .setPositiveButton(R.string.save, (d, w) -> {
-                    String t = et.getText().toString().trim();
-                    if (!t.isEmpty()) vm.createFolderAndMove(t, s.id);
-                })
-                .show();
+        ProjectDialog.show(this, null, (name, desc, icon) -> vm.createFolderAndMove(name, desc, icon, s.id));
     }
 
-    private void renameFolderDialog(final FolderEntity f) {
-        View v = getLayoutInflater().inflate(R.layout.dialog_rename, null);
-        final EditText et = v.findViewById(R.id.etRename);
-        et.setText(f.name);
-        et.setSelection(et.getText().length());
-        new MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.rename_project)
-                .setView(v)
-                .setNegativeButton(R.string.cancel, null)
-                .setPositiveButton(R.string.save, (d, w) -> {
-                    String t = et.getText().toString().trim();
-                    if (!t.isEmpty()) vm.renameFolder(f.id, t);
-                })
-                .show();
+    private FolderEntity currentFolderEntity() {
+        long id = vm.currentFolderId();
+        if (id == 0) return null;
+        for (FolderEntity f : lastFolders) if (f.id == id) return f;
+        return null;
     }
 
-    private void editInstructions(final FolderEntity f) {
-        View v = getLayoutInflater().inflate(R.layout.dialog_text_edit, null);
-        final com.google.android.material.textfield.TextInputEditText et = v.findViewById(R.id.etDialogText);
-        et.setText(f.instructions == null ? "" : f.instructions);
-        new MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.project_instructions)
-                .setMessage(R.string.project_instructions_hint)
-                .setView(v)
-                .setNegativeButton(R.string.cancel, null)
-                .setPositiveButton(R.string.save, (d, w) ->
-                        vm.setFolderInstructions(f.id, et.getText() == null ? "" : et.getText().toString().trim()))
-                .show();
+    /** Shows the project icon in front of the chat title while a project chat is open. */
+    private void updateProjectTag() {
+        FolderEntity f = currentFolderEntity();
+        if (f == null) {
+            tvTitle.setCompoundDrawablesRelative(null, null, null, null);
+            return;
+        }
+        Drawable d = ContextCompat.getDrawable(this, ProjectIcons.res(f.icon));
+        if (d == null) return;
+        d = DrawableCompat.wrap(d.mutate());
+        DrawableCompat.setTint(d, ContextCompat.getColor(this, R.color.ink_muted));
+        int px = Math.round(16 * getResources().getDisplayMetrics().density);
+        d.setBounds(0, 0, px, px);
+        tvTitle.setCompoundDrawablesRelative(d, null, null, null);
+        tvTitle.setCompoundDrawablePadding(Math.round(6 * getResources().getDisplayMetrics().density));
     }
 
-    private void confirmDeleteFolder(final FolderEntity f) {
-        new MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.delete_project_title)
-                .setMessage(R.string.delete_project_msg)
-                .setNegativeButton(R.string.cancel, null)
-                .setNeutralButton(R.string.keep_chats, (d, w) -> vm.deleteFolder(f.id, false))
-                .setPositiveButton(R.string.delete_with_chats, (d, w) -> vm.deleteFolder(f.id, true))
-                .show();
+    /** Suggestion chips while the user types a slash command inside a project chat. */
+    private void updateSlash() {
+        if (rvSlash == null || slashAdapter == null) return;
+        FolderEntity f = currentFolderEntity();
+        String t = etInput.getText().toString();
+        if (f == null || !t.startsWith("/") || t.contains(" ") || t.contains("\n")) {
+            rvSlash.setVisibility(View.GONE);
+            return;
+        }
+        String q = t.substring(1).toLowerCase(java.util.Locale.ROOT);
+        List<Slash.Item> match = new ArrayList<>();
+        for (Slash.Item it : Slash.available(this, ProjectRepo.parseCommands(f.commands))) {
+            if (it.name.startsWith(q)) match.add(it);
+        }
+        slashAdapter.submit(match);
+        rvSlash.setVisibility(match.isEmpty() ? View.GONE : View.VISIBLE);
     }
 
     private void showRename(SessionEntity s) {

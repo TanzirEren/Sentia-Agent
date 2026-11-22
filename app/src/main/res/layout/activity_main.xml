@@ -79,10 +79,11 @@
             app:layout_constraintVertical_bias="0.40">
 
             <ImageView
-                android:layout_width="76dp"
-                android:layout_height="76dp"
-                android:contentDescription="@null"
-                android:src="@drawable/sentia_portrait" />
+                android:layout_width="92dp"
+                android:layout_height="87dp"
+                android:contentDescription="@string/cd_logo"
+                android:scaleType="fitCenter"
+                android:src="@drawable/logo_mark" />
 
             <TextView
                 android:id="@+id/tvGreeting"
@@ -151,6 +152,17 @@
                     android:padding="10dp"
                     android:src="@drawable/ic_close" />
             </LinearLayout>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvSlash"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clipToPadding="false"
+                android:orientation="horizontal"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="6dp"
+                android:visibility="gone" />
 
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/inputCard"

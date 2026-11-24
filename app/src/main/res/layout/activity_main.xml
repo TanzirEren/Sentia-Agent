@@ -43,6 +43,17 @@
                 android:textSize="14sp" />
 
             <ImageButton
+                android:id="@+id/btnFiles"
+                style="@style/Sentia.IconButton"
+                android:layout_width="@dimen/icon_btn"
+                android:layout_height="@dimen/icon_btn"
+                android:layout_gravity="end|center_vertical"
+                android:layout_marginEnd="50dp"
+                android:contentDescription="@string/cd_files"
+                android:src="@drawable/ic_workspace"
+                android:visibility="gone" />
+
+            <ImageButton
                 android:id="@+id/btnNewChat"
                 style="@style/Sentia.IconButton"
                 android:layout_width="@dimen/icon_btn"
@@ -293,4 +304,13 @@
         android:layout_width="304dp"
         android:layout_height="match_parent"
         android:layout_gravity="start" />
+
+    <FrameLayout
+        android:id="@+id/explorerDrawer"
+        android:layout_width="320dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="end"
+        android:background="@color/drawer_bg"
+        android:clickable="true"
+        android:focusable="true" />
 </androidx.drawerlayout.widget.DrawerLayout>

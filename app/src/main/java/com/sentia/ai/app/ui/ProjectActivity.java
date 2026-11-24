@@ -26,6 +26,8 @@ import com.sentia.ai.app.data.db.ProjectFileEntity;
 import com.sentia.ai.app.data.db.SessionEntity;
 import com.sentia.ai.app.model.ProjectCommand;
 import com.sentia.ai.app.util.ChatExporter;
+import com.sentia.ai.app.workspace.WorkspaceManager;
+import com.sentia.ai.app.workspace.WsStats;
 import com.sentia.ai.app.util.Slash;
 
 import java.util.ArrayList;
@@ -49,6 +51,7 @@ public class ProjectActivity extends AppCompatActivity {
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private ActivityResultLauncher<String[]> pickFiles;
     private ActivityResultLauncher<String> exportMd;
+    private WorkspaceActions wsActions;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -84,6 +87,13 @@ public class ProjectActivity extends AppCompatActivity {
             });
         });
 
+        wsActions = new WorkspaceActions(this, folderId, "", new WorkspaceActions.Listener() {
+            @Override
+            public void onWorkspaceChanged() {
+                refreshWorkspaceStats();
+            }
+        });
+
         RecyclerView rv = findViewById(R.id.rvPage);
         rv.setLayoutManager(new LinearLayoutManager(this));
         adapter = new ProjectPageAdapter(new ProjectPageAdapter.Listener() {
@@ -91,6 +101,21 @@ public class ProjectActivity extends AppCompatActivity {
             public void onFiles() {
                 ProjectFilesSheet.show(ProjectActivity.this, repo, folderId,
                         () -> pickFiles.launch(new String[]{"*/*"}));
+            }
+
+            @Override
+            public void onWorkspace() {
+                if (folder != null && folder.workspaceLinked && WorkspaceManager.exists(ProjectActivity.this, folderId)) {
+                    openWorkspace();
+                } else {
+                    wsActions.setProject(folderId, folder == null ? "" : folder.name);
+                    wsActions.showAddSheet();
+                }
+            }
+
+            @Override
+            public void onWorkspaceMenu() {
+                showWorkspaceMenu();
             }
 
             @Override
@@ -159,6 +184,7 @@ public class ProjectActivity extends AppCompatActivity {
                 return;
             }
             folder = f;
+            wsActions.setProject(folderId, f.name);
             tvTop.setText(f.name);
             btnPin.setImageResource(f.pinned ? R.drawable.ic_pin_filled : R.drawable.ic_pin);
             btnPin.setContentDescription(getString(f.pinned ? R.string.act_unpin_project : R.string.act_pin_project));
@@ -177,6 +203,48 @@ public class ProjectActivity extends AppCompatActivity {
 
     private void push() {
         adapter.submit(folder, chats, files);
+    }
+
+    private void openWorkspace() {
+        Intent i = new Intent(this, FilesActivity.class);
+        i.putExtra(FilesActivity.EXTRA_PROJECT, folderId);
+        startActivity(i);
+    }
+
+    private void showWorkspaceMenu() {
+        boolean has = WorkspaceManager.exists(this, folderId);
+        java.util.List<ActionSheet.Row> rows = new ArrayList<>();
+        if (has) {
+            rows.add(new ActionSheet.Row(R.drawable.ic_workspace, getString(R.string.ws_open_files), this::openWorkspace));
+            rows.add(new ActionSheet.Row(R.drawable.ic_zip, getString(R.string.ws_export_share), wsActions::exportZipShare));
+            rows.add(new ActionSheet.Row(R.drawable.ic_download, getString(R.string.ws_export_save), wsActions::exportZipSave));
+        }
+        rows.add(new ActionSheet.Row(R.drawable.ic_folder, getString(R.string.ws_import_folder), wsActions::importFolder));
+        rows.add(new ActionSheet.Row(R.drawable.ic_file, getString(R.string.ws_import_zip), wsActions::importZip));
+        if (has) {
+            rows.add(new ActionSheet.Row(R.drawable.ic_trash, getString(R.string.ws_delete_title), wsActions::confirmDeleteWorkspace));
+        } else {
+            rows.add(new ActionSheet.Row(R.drawable.ic_new_folder, getString(R.string.ws_create_blank), wsActions::createBlank));
+        }
+        ActionSheet.show(this, getString(R.string.box_workspace), rows);
+    }
+
+    /** Counts files in the background and shows them on the Workspace card. */
+    private void refreshWorkspaceStats() {
+        final long id = folderId;
+        WorkspaceManager.run(() -> {
+            final WsStats s = WorkspaceManager.exists(getApplicationContext(), id)
+                    ? WorkspaceManager.stats(getApplicationContext(), id) : new WsStats();
+            WorkspaceManager.post(() -> {
+                if (!isFinishing() && !isDestroyed()) adapter.setWorkspaceStats(s);
+            });
+        });
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        refreshWorkspaceStats();
     }
 
     // ------------------------------------------------------------ menus

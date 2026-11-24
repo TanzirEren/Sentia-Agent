@@ -170,6 +170,32 @@ public class SettingsActivity extends AppCompatActivity {
                     setValue(voice, voiceLabel());
                 }));
 
+        // ---- Editor and workspace (Phase 2A)
+        header(R.string.sec_editor);
+        slider(getString(R.string.set_editor_size), SettingsStore.EDITOR_SIZE_MIN, SettingsStore.EDITOR_SIZE_MAX, 1f,
+                settings.editorTextSizeSp(), false,
+                v -> String.format(java.util.Locale.US, "%.0f sp", v), (v, fromUser) -> settings.setEditorTextSizeSp(v));
+        toggle(R.string.set_editor_wrap, 0, settings.editorWordWrap(), (b, c) -> settings.setEditorWordWrap(c));
+        toggle(R.string.set_editor_lines, 0, settings.editorLineNumbers(), (b, c) -> settings.setEditorLineNumbers(c));
+        final String[] tabLabels = {getString(R.string.tab_2), getString(R.string.tab_4)};
+        final View tabRow = row(getString(R.string.set_editor_tab), null, tabLabels[settings.editorTabSize() == 2 ? 0 : 1], true, null);
+        tabRow.setOnClickListener(v -> choose(R.string.set_editor_tab, tabLabels, settings.editorTabSize() == 2 ? 0 : 1, i -> {
+            settings.setEditorTabSize(i == 0 ? 2 : 4);
+            setValue(tabRow, tabLabels[i]);
+        }));
+        final String[] fontLabels = {getString(R.string.font_system_mono), getString(R.string.font_jetbrains)};
+        final View fontRow = row(getString(R.string.set_editor_font), null, fontLabels[settings.editorFont()], true, null);
+        fontRow.setOnClickListener(v -> choose(R.string.set_editor_font, fontLabels, settings.editorFont(), i -> {
+            settings.setEditorFont(i);
+            setValue(fontRow, fontLabels[i]);
+        }));
+        toggle(R.string.set_show_hidden, R.string.set_show_hidden_sub, settings.showHiddenFiles(), (b, c) -> settings.setShowHiddenFiles(c));
+
+        // ---- Developer
+        header(R.string.sec_developer);
+        row(getString(R.string.set_tool_tester), getString(R.string.set_tool_tester_sub), null, true,
+                v -> startActivity(new Intent(this, ToolTesterActivity.class)));
+
         // ---- Data
         header(R.string.sec_data);
         row(getString(R.string.set_export), null, null, true, v -> chooseExport());

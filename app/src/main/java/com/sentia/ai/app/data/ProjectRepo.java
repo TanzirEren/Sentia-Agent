@@ -190,6 +190,11 @@ public final class ProjectRepo {
         }
     }
 
+    /** Remembers that the project has (or no longer has) a workspace folder. */
+    public void setWorkspace(final long id, final boolean linked, final String source) {
+        io.execute(() -> db.folderDao().setWorkspace(id, linked, linked ? source : null, System.currentTimeMillis()));
+    }
+
     public void setPlanFirst(final long id, final boolean on) {
         io.execute(() -> db.folderDao().setPlanFirst(id, on));
     }
@@ -200,6 +205,7 @@ public final class ProjectRepo {
             else db.sessionDao().clearFolder(id);
             db.folderDao().delete(id);
             deleteDir(new File(new File(app.getFilesDir(), "projects"), String.valueOf(id)));
+            com.sentia.ai.app.workspace.WorkspaceManager.delete(app, id);
             if (done != null) main.post(done);
         });
     }

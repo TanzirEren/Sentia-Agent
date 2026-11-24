@@ -22,4 +22,12 @@ public final class Fmt {
     public static String grouped(long n) {
         return String.format(Locale.US, "%,d", n);
     }
+
+    /** 900 B, 1.5 KB, 2.5 MB. */
+    public static String bytes(long b) {
+        if (b < 1024) return b + " B";
+        if (b < 1024L * 1024L) return String.format(Locale.US, "%.1f KB", b / 1024.0);
+        if (b < 1024L * 1024L * 1024L) return String.format(Locale.US, "%.1f MB", b / 1048576.0);
+        return String.format(Locale.US, "%.1f GB", b / 1073741824.0);
+    }
 }

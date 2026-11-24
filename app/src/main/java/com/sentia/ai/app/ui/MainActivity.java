@@ -71,6 +71,11 @@ public class MainActivity extends AppCompatActivity {
     private ProviderStore providers;
 
     private DrawerLayout drawer;
+    private ExplorerController explorer;
+    private WorkspaceActions wsActions;
+    private android.widget.FrameLayout explorerDrawer;
+    private android.view.View btnFiles;
+    private long explorerProject;
     private RecyclerView rvMessages, rvSessions, rvAtt;
     private EditText etInput, etSearch;
     private TextView tvTitle, tvModel, tvHint;
@@ -117,6 +122,7 @@ public class MainActivity extends AppCompatActivity {
         bindViews();
         registerLaunchers();
         registerExportLaunchers();
+        setupExplorer();
         setupMessages();
         setupDrawer();
         setupInput();
@@ -165,6 +171,13 @@ public class MainActivity extends AppCompatActivity {
         updateModelPill();
         updateGreeting();
         if (chatAdapter != null) chatAdapter.notifyDataSetChanged();
+        if (explorer != null && drawer.isDrawerOpen(GravityCompat.END)) explorer.onResume();
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (explorer != null) explorer.release();
+        super.onDestroy();
     }
 
     @Override
@@ -403,11 +416,13 @@ public class MainActivity extends AppCompatActivity {
             rebuildDrawer();
             updateProjectTag();
             updateSlash();
+            updateFilesButton();
         });
         vm.currentSession().observe(this, id -> drawerAdapter.setCurrent(id == null ? 0 : id));
         vm.currentFolder().observe(this, id -> {
             updateProjectTag();
             updateSlash();
+            updateFilesButton();
         });
         vm.editing().observe(this, m -> editBanner.setVisibility(m == null ? View.GONE : View.VISIBLE));
         vm.toast().observe(this, msg -> {
@@ -422,7 +437,9 @@ public class MainActivity extends AppCompatActivity {
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
-                if (drawer.isDrawerOpen(GravityCompat.START)) {
+                if (drawer.isDrawerOpen(GravityCompat.END)) {
+                    if (explorer == null || !explorer.handleBack()) drawer.closeDrawer(GravityCompat.END);
+                } else if (drawer.isDrawerOpen(GravityCompat.START)) {
                     drawer.closeDrawer(GravityCompat.START);
                 } else if (vm.editing().getValue() != null) {
                     vm.cancelEdit();
@@ -681,6 +698,75 @@ public class MainActivity extends AppCompatActivity {
         if (id == 0) return null;
         for (FolderEntity f : lastFolders) if (f.id == id) return f;
         return null;
+    }
+
+    /** Right drawer with the files of the current project (Phase 2A). */
+    private void setupExplorer() {
+        explorerDrawer = findViewById(R.id.explorerDrawer);
+        btnFiles = findViewById(R.id.btnFiles);
+        wsActions = new WorkspaceActions(this, 0, "", new WorkspaceActions.Listener() {
+            @Override
+            public void onWorkspaceChanged() {
+                if (explorer != null) explorer.refresh();
+            }
+        });
+        drawer.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED, GravityCompat.END);
+        drawer.addDrawerListener(new DrawerLayout.SimpleDrawerListener() {
+            @Override
+            public void onDrawerOpened(View drawerView) {
+                if (drawerView == explorerDrawer && explorer != null) explorer.onResume();
+            }
+        });
+        btnFiles.setOnClickListener(v -> {
+            FolderEntity f = currentFolderEntity();
+            if (f == null) return;
+            ensureExplorer(f);
+            drawer.openDrawer(GravityCompat.END);
+        });
+    }
+
+    private void ensureExplorer(FolderEntity f) {
+        if (explorer == null) {
+            explorer = new ExplorerController(this, explorerDrawer, f.id, f.name, wsActions,
+                    new ExplorerController.Host() {
+                        @Override
+                        public void onOpenFile(String rel) {
+                            Intent i = new Intent(MainActivity.this, EditorActivity.class);
+                            i.putExtra(EditorActivity.EXTRA_PROJECT, explorerProject);
+                            i.putExtra(EditorActivity.EXTRA_PATH, rel);
+                            startActivity(i);
+                        }
+                    });
+            explorerProject = f.id;
+        } else if (explorerProject != f.id) {
+            explorer.setProject(f.id, f.name);
+            explorerProject = f.id;
+        }
+    }
+
+    /** The Files button and right drawer exist only while a project chat with a workspace is open. */
+    private void updateFilesButton() {
+        if (btnFiles == null) return;
+        FolderEntity f = currentFolderEntity();
+        boolean show = f != null && f.workspaceLinked;
+        btnFiles.setVisibility(show ? View.VISIBLE : View.GONE);
+        drawer.setDrawerLockMode(show ? DrawerLayout.LOCK_MODE_UNLOCKED : DrawerLayout.LOCK_MODE_LOCKED_CLOSED,
+                GravityCompat.END);
+        int margin = Math.round((show ? 100 : 64) * getResources().getDisplayMetrics().density);
+        android.widget.FrameLayout.LayoutParams lp = (android.widget.FrameLayout.LayoutParams) tvTitle.getLayoutParams();
+        if (lp.getMarginStart() != margin || lp.getMarginEnd() != margin) {
+            lp.setMarginStart(margin);
+            lp.setMarginEnd(margin);
+            tvTitle.setLayoutParams(lp);
+        }
+        if (!show) {
+            if (drawer.isDrawerOpen(GravityCompat.END)) drawer.closeDrawer(GravityCompat.END);
+        } else if (explorer != null && explorerProject != f.id) {
+            ensureExplorer(f);
+        } else if (explorer != null) {
+            // the project name may have been renamed
+            explorerProject = f.id;
+        }
     }
 
     /** Shows the project icon in front of the chat title while a project chat is open. */

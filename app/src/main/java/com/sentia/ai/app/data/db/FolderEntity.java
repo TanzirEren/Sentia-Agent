@@ -25,4 +25,9 @@ public class FolderEntity {
     public String commands;
     /** When true the AI proposes a short plan before big tasks. */
     public boolean planFirst;
+    /** True when this project has a workspace folder (files the agent can work on). */
+    public boolean workspaceLinked;
+    /** Where the workspace came from: blank, folder or zip. */
+    public String workspaceSource;
+    public long workspaceUpdatedAt;
 }

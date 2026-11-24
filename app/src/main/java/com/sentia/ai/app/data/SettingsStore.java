@@ -82,6 +82,45 @@ public class SettingsStore {
     public int fontWeight() { return p.getInt("font_weight", 0); }
     public void setFontWeight(int v) { p.edit().putInt("font_weight", v).apply(); }
 
+    // ---- editor and workspace (Phase 2A)
+    public static final float EDITOR_SIZE_MIN = 9f, EDITOR_SIZE_MAX = 24f;
+
+    /** Code editor text size in sp. A bad stored value is repaired. */
+    public float editorTextSizeSp() {
+        float v;
+        try {
+            v = p.getFloat("editor_text_size", 13f);
+        } catch (ClassCastException e) {
+            v = 13f;
+        }
+        if (Float.isNaN(v) || v < EDITOR_SIZE_MIN || v > EDITOR_SIZE_MAX) v = 13f;
+        return v;
+    }
+    public void setEditorTextSizeSp(float v) {
+        float c = Math.max(EDITOR_SIZE_MIN, Math.min(EDITOR_SIZE_MAX, v));
+        p.edit().putFloat("editor_text_size", c).apply();
+    }
+
+    public boolean editorWordWrap() { return p.getBoolean("editor_wrap", false); }
+    public void setEditorWordWrap(boolean v) { p.edit().putBoolean("editor_wrap", v).apply(); }
+
+    public boolean editorLineNumbers() { return p.getBoolean("editor_lines", true); }
+    public void setEditorLineNumbers(boolean v) { p.edit().putBoolean("editor_lines", v).apply(); }
+
+    /** 2 or 4 spaces. */
+    public int editorTabSize() {
+        int v = p.getInt("editor_tab", 4);
+        return v == 2 ? 2 : 4;
+    }
+    public void setEditorTabSize(int v) { p.edit().putInt("editor_tab", v == 2 ? 2 : 4).apply(); }
+
+    /** 0 = system monospace, 1 = JetBrains Mono. */
+    public int editorFont() { return p.getInt("editor_font", 1) == 0 ? 0 : 1; }
+    public void setEditorFont(int v) { p.edit().putInt("editor_font", v == 0 ? 0 : 1).apply(); }
+
+    public boolean showHiddenFiles() { return p.getBoolean("ws_show_hidden", false); }
+    public void setShowHiddenFiles(boolean v) { p.edit().putBoolean("ws_show_hidden", v).apply(); }
+
     public boolean markdown() { return p.getBoolean("markdown", true); }
     public void setMarkdown(boolean v) { p.edit().putBoolean("markdown", v).apply(); }
 

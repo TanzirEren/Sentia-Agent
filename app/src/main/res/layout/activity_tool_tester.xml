@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/surface"
+    android:orientation="vertical">
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp">
+
+        <ImageButton
+            android:id="@+id/btnBack"
+            style="@style/Sentia.IconButton"
+            android:layout_gravity="start|center_vertical"
+            android:layout_marginStart="6dp"
+            android:contentDescription="@string/cd_back"
+            android:src="@drawable/ic_back" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_vertical"
+            android:layout_marginStart="64dp"
+            android:layout_marginEnd="64dp"
+            android:ellipsize="end"
+            android:gravity="center"
+            android:maxLines="1"
+            android:text="@string/tester_title"
+            android:textColor="@color/ink_muted"
+            android:textSize="14sp" />
+    </FrameLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="24dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/tester_hint"
+                android:textColor="@color/ink_muted"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/tvTesterProject"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_pill_nude"
+                android:drawableEnd="@drawable/ic_chevron_down"
+                android:drawablePadding="6dp"
+                android:drawableTint="@color/ink_muted"
+                android:gravity="center_vertical"
+                android:maxWidth="300dp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:paddingStart="16dp"
+                android:paddingEnd="12dp"
+                android:textColor="@color/ink"
+                android:textSize="14sp" />
+
+            <HorizontalScrollView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:overScrollMode="never"
+                android:scrollbars="none">
+
+                <LinearLayout
+                    android:id="@+id/toolChips"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal" />
+            </HorizontalScrollView>
+
+            <TextView
+                android:id="@+id/tvToolInfo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:textColor="@color/ink_muted"
+                android:textSize="12sp" />
+
+            <EditText
+                android:id="@+id/etArgs"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/bg_card_outline"
+                android:fontFamily="monospace"
+                android:gravity="top|start"
+                android:imeOptions="flagNoExtractUi"
+                android:inputType="textMultiLine|textNoSuggestions"
+                android:minHeight="110dp"
+                android:padding="14dp"
+                android:textColor="@color/ink"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/btnRun"
+                android:layout_width="match_parent"
+                android:layout_height="46dp"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_pill_ink"
+                android:gravity="center"
+                android:text="@string/tester_run"
+                android:textColor="@color/on_ink"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvOutput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/bg_card_outline"
+                android:fontFamily="monospace"
+                android:minHeight="120dp"
+                android:padding="14dp"
+                android:textColor="@color/ink"
+                android:textIsSelectable="true"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

@@ -10,7 +10,7 @@ import androidx.room.RoomDatabase;
 import androidx.room.migration.Migration;
 import androidx.sqlite.db.SupportSQLiteDatabase;
 
-@Database(entities = {SessionEntity.class, MessageEntity.class, FolderEntity.class, ProjectFileEntity.class}, version = 3, exportSchema = false)
+@Database(entities = {SessionEntity.class, MessageEntity.class, FolderEntity.class, ProjectFileEntity.class}, version = 4, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     private static AppDatabase instance;
 
@@ -63,6 +63,16 @@ public abstract class AppDatabase extends RoomDatabase {
         }
     };
 
+    /** 3 to 4: link a project to its workspace folder. Only new columns, nothing is removed. */
+    static final Migration MIGRATION_3_4 = new Migration(3, 4) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            addColumnIfMissing(db, "folders", "workspaceLinked", "INTEGER NOT NULL DEFAULT 0");
+            addColumnIfMissing(db, "folders", "workspaceSource", "TEXT");
+            addColumnIfMissing(db, "folders", "workspaceUpdatedAt", "INTEGER NOT NULL DEFAULT 0");
+        }
+    };
+
     private static void addColumnIfMissing(SupportSQLiteDatabase db, String table, String column, String ddl) {
         boolean found = false;
         Cursor c = db.query("PRAGMA table_info(`" + table + "`)");
@@ -83,7 +93,7 @@ public abstract class AppDatabase extends RoomDatabase {
     public static synchronized AppDatabase get(Context c) {
         if (instance == null) {
             instance = Room.databaseBuilder(c.getApplicationContext(), AppDatabase.class, "sentia.db")
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .fallbackToDestructiveMigrationOnDowngrade()
                     .build();
         }

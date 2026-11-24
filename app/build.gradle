@@ -10,8 +10,8 @@ android {
         applicationId "com.sentia.ai.app"
         minSdk 24
         targetSdk 34
-        versionCode 5
-        versionName "0.0.4.1"
+        versionCode 6
+        versionName "0.0.5"
     }
 
     // Release signing: values come from environment variables (set by GitHub Actions secrets).
@@ -43,6 +43,8 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
+        // Needed by the TextMate language module of Sora Editor
+        coreLibraryDesugaringEnabled true
     }
 
     lint {
@@ -58,6 +60,7 @@ dependencies {
     implementation 'androidx.drawerlayout:drawerlayout:1.2.0'
     implementation 'androidx.activity:activity:1.9.1'
     implementation 'androidx.core:core:1.13.1'
+    implementation 'androidx.documentfile:documentfile:1.0.1'
 
     implementation 'androidx.lifecycle:lifecycle-viewmodel:2.8.4'
     implementation 'androidx.lifecycle:lifecycle-livedata:2.8.4'
@@ -74,4 +77,10 @@ dependencies {
     implementation 'io.noties.markwon:ext-tables:4.6.2'
     implementation 'io.noties.markwon:ext-tasklist:4.6.2'
     implementation 'io.noties.markwon:linkify:4.6.2'
+
+    // Code editor (Phase 2A). Used only inside ui/CodeEditorView and ui/EditorEngine.
+    implementation platform('io.github.Rosemoe.sora-editor:bom:0.23.4')
+    implementation 'io.github.Rosemoe.sora-editor:editor'
+    implementation 'io.github.Rosemoe.sora-editor:language-textmate'
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
 }

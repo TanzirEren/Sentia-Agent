@@ -23,6 +23,7 @@ import com.sentia.ai.app.data.db.SessionEntity;
 import com.sentia.ai.app.util.Fmt;
 import com.sentia.ai.app.util.ProjectContext;
 import com.sentia.ai.app.util.ProjectIcons;
+import com.sentia.ai.app.workspace.WsStats;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,6 +32,10 @@ import java.util.List;
 public class ProjectPageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     public interface Listener {
         void onFiles();
+
+        void onWorkspace();
+
+        void onWorkspaceMenu();
 
         void onInstructions();
 
@@ -53,6 +58,7 @@ public class ProjectPageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHo
     private FolderEntity folder;
     private List<SessionEntity> chats = new ArrayList<>();
     private List<ProjectFileEntity> files = new ArrayList<>();
+    private WsStats wsStats;
 
     public ProjectPageAdapter(Listener l) {
         this.listener = l;
@@ -63,6 +69,12 @@ public class ProjectPageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHo
         chats = c == null ? new ArrayList<SessionEntity>() : c;
         files = fl == null ? new ArrayList<ProjectFileEntity>() : fl;
         notifyDataSetChanged();
+    }
+
+    /** Numbers for the Workspace card. Null means not loaded yet. */
+    public void setWorkspaceStats(WsStats s) {
+        wsStats = s;
+        if (folder != null) notifyItemChanged(0);
     }
 
     @Override
@@ -155,6 +167,23 @@ public class ProjectPageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHo
         h.tvContext.setText(c.getString(R.string.project_context,
                 Fmt.compact(ProjectContext.estimateTokens(folder, files))));
 
+        boolean linked = folder.workspaceLinked;
+        if (!linked) {
+            h.wsSub.setText(R.string.ws_card_none);
+            h.wsOpen.setText(R.string.ws_card_add);
+        } else {
+            String src = "folder".equals(folder.workspaceSource) ? c.getString(R.string.ws_src_folder)
+                    : "zip".equals(folder.workspaceSource) ? c.getString(R.string.ws_src_zip) : c.getString(R.string.ws_src_blank);
+            if (wsStats == null) {
+                h.wsSub.setText(src);
+            } else {
+                h.wsSub.setText(c.getString(R.string.ws_card_stats, wsStats.files, Fmt.bytes(wsStats.bytes), src));
+            }
+            h.wsOpen.setText(R.string.ws_card_open);
+        }
+        h.boxWorkspace.setOnClickListener(v -> listener.onWorkspace());
+        h.wsOpen.setOnClickListener(v -> listener.onWorkspace());
+        h.wsMore.setOnClickListener(v -> listener.onWorkspaceMenu());
         h.boxFiles.setOnClickListener(v -> listener.onFiles());
         h.boxInstr.setOnClickListener(v -> listener.onInstructions());
         h.chipMemory.setOnClickListener(v -> listener.onMemory());
@@ -166,7 +195,8 @@ public class ProjectPageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHo
     static final class HeaderHolder extends RecyclerView.ViewHolder {
         final ImageView icon, ivPlan;
         final TextView name, desc, filesSub, instrSub, tvMemory, tvCommands, tvPlan, tvBrief, tvContext;
-        final View boxFiles, boxInstr, chipMemory, chipCommands, chipPlan, chipBrief;
+        final View boxFiles, boxInstr, chipMemory, chipCommands, chipPlan, chipBrief, boxWorkspace, wsMore;
+        final TextView wsSub, wsOpen;
 
         HeaderHolder(View v) {
             super(v);
@@ -182,6 +212,10 @@ public class ProjectPageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHo
             ivPlan = v.findViewById(R.id.ivChipPlan);
             tvContext = v.findViewById(R.id.tvContext);
             boxFiles = v.findViewById(R.id.boxFiles);
+            boxWorkspace = v.findViewById(R.id.boxWorkspace);
+            wsSub = v.findViewById(R.id.tvWorkspaceSub);
+            wsOpen = v.findViewById(R.id.btnWorkspaceOpen);
+            wsMore = v.findViewById(R.id.btnWorkspaceMore);
             boxInstr = v.findViewById(R.id.boxInstr);
             chipMemory = v.findViewById(R.id.chipMemory);
             chipCommands = v.findViewById(R.id.chipCommands);

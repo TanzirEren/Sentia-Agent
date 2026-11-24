@@ -43,6 +43,9 @@ public interface FolderDao {
     @Query("UPDATE folders SET planFirst = :on WHERE id = :id")
     void setPlanFirst(long id, boolean on);
 
+    @Query("UPDATE folders SET workspaceLinked = :linked, workspaceSource = :source, workspaceUpdatedAt = :t WHERE id = :id")
+    void setWorkspace(long id, boolean linked, String source, long t);
+
     @Query("UPDATE folders SET pinned = :pinned WHERE id = :id")
     void setPinned(long id, boolean pinned);
 

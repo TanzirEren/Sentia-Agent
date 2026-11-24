@@ -1,4 +1,4 @@
-# Sentia (v0.0.4.1) — Phase 1A + 1B + 1C + 1D
+# Sentia (v0.0.5) — Phase 1 + 2A
 
 Mobile AI agent app. Package: `com.sentia.ai.app`. Java + XML, Material 3, min SDK 24.
 
@@ -96,3 +96,34 @@ app/src/main/java/com/sentia/ai/app/
 
 Hind Siliguri font: SIL Open Font License (`licenses/OFL-HindSiliguri.txt`).
 - Poppins font (splash screen): SIL Open Font License 1.1, see `licenses/OFL-Poppins.txt`
+
+## Added in 2A (v0.0.5): workspace, file explorer, code editor
+
+Sentia is still not an agent. 2A builds the base the agent will stand on: a safe workspace, the file tools
+and a place to read and edit files by hand.
+
+- **Workspace per project.** Files live inside the app (`files/workspaces/<project id>`). Create a blank one,
+  import a folder (Storage Access Framework) or a ZIP. The Project page has a Workspace card (file count, size,
+  Open, menu). Import into a non-empty workspace goes into a new sub folder, nothing is overwritten.
+  Limits: 5000 files, 100 MB in total, 20 MB per file. A single top folder inside a ZIP is removed.
+- **Safe file layer (`WorkspaceFs`).** Every file action goes through it: `..` is refused, symbolic links are
+  refused, names are checked, saves are atomic (temp file, then rename), hidden folders (`.git`, `node_modules`,
+  `build`, `.gradle`, ...) are left out unless you turn them on. UTF-8, BOM and CRLF are kept when you save.
+- **Tool skeleton.** `Tool`, `ToolResult`, `ToolContext`, `ToolRegistry` and two read-only tools:
+  `Read` (line numbers, offset and limit, big files are cut with a marker) and `ListDir` (depth 1 to 5).
+  Settings > Developer > Tool tester runs them by hand.
+- **File explorer.** Tree with expand and collapse, breadcrumb, name filter, new file or folder, rename, duplicate,
+  move, delete, copy path, share, multi-select (zip and delete), recent files, show hidden. It is a full screen
+  (Project page > Workspace > Open) and a right-side drawer in a project chat (Files button in the top bar).
+- **Code editor** (Sora Editor behind `CodeEditorView`). Highlighting for Java, XML, HTML, CSS, JavaScript, JSON
+  and Markdown, symbol bar, undo and redo, save with unsaved dot, find and replace (case, regex), go to line, word
+  wrap, pinch to zoom the text, draft recovery, check for changes made outside the editor, large file warning
+  (read-only option), image viewer with zoom, clear message for binary files.
+- **Export.** Share the workspace (or selected items) as a ZIP, or save the ZIP to the phone.
+- Settings: Code editor section (text size, word wrap, line numbers, tab size, font, hidden folders), Developer section.
+- Database version 4 (migration 3 to 4: three new columns on `folders`, nothing removed).
+
+New libraries: Sora Editor 0.23.4 (`editor`, `language-textmate`), core library desugaring (needed by Sora TextMate),
+`androidx.documentfile`. Bundled: TextMate grammars (VS Code, MIT), JetBrains Mono (OFL).
+
+Not verified on a device: everything in 2A. See the delivery notes for the exact checks that were run.

@@ -69,9 +69,17 @@ public final class ChatExporter {
                 sb.append("## ").append(s.title == null ? "Chat" : s.title).append('\n');
                 sb.append('_').append(f.format(new Date(s.createdAt))).append("_\n\n");
                 for (MessageEntity m : db.messageDao().list(s.id)) {
-                    if ("error".equals(m.role)) continue;
+                    if ("error".equals(m.role) || "tool".equals(m.role)) continue;
                     sb.append("**").append("user".equals(m.role) ? "You" : "Sentia").append("**\n\n");
                     sb.append(m.content == null ? "" : m.content).append("\n\n");
+                    if (m.toolCallsJson != null && !m.toolCallsJson.isEmpty()) {
+                        StringBuilder used = new StringBuilder();
+                        for (com.sentia.ai.app.net.ToolCall c : com.sentia.ai.app.agent.HistoryBuilder.parseCalls(m.toolCallsJson)) {
+                            if (used.length() > 0) used.append(", ");
+                            used.append(c.name);
+                        }
+                        sb.append("_Tools used: ").append(used).append("_\n\n");
+                    }
                 }
                 sb.append("---\n\n");
             }
@@ -90,6 +98,9 @@ public final class ChatExporter {
                 mo.addProperty("content", m.content);
                 mo.addProperty("model", m.modelLabel);
                 mo.addProperty("createdAt", m.createdAt);
+                if (m.toolCallsJson != null) mo.addProperty("toolCalls", m.toolCallsJson);
+                if (m.toolCallId != null) mo.addProperty("toolCallId", m.toolCallId);
+                if (m.toolName != null) mo.addProperty("toolName", m.toolName);
                 ma.add(mo);
             }
             so.add("messages", ma);

@@ -17,4 +17,9 @@ public interface Tool {
     boolean needsPermission(JSONObject input);
 
     ToolResult execute(JSONObject input, ToolContext ctx) throws Exception;
+
+    /** A short line for the tool card in the chat, for example the file path. */
+    default String summary(JSONObject input) {
+        return "";
+    }
 }

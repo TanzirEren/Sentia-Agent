@@ -6,6 +6,10 @@ public interface StreamListener {
 
     void onUsage(int promptTokens, int completionTokens);
 
+    /** A complete tool call (arguments fully received). Arrives before onDone. */
+    default void onToolCall(ToolCall call) {
+    }
+
     void onDone();
 
     void onError(String message);

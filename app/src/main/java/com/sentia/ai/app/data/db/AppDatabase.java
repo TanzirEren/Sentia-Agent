@@ -10,7 +10,7 @@ import androidx.room.RoomDatabase;
 import androidx.room.migration.Migration;
 import androidx.sqlite.db.SupportSQLiteDatabase;
 
-@Database(entities = {SessionEntity.class, MessageEntity.class, FolderEntity.class, ProjectFileEntity.class}, version = 4, exportSchema = false)
+@Database(entities = {SessionEntity.class, MessageEntity.class, FolderEntity.class, ProjectFileEntity.class}, version = 5, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     private static AppDatabase instance;
 
@@ -73,6 +73,18 @@ public abstract class AppDatabase extends RoomDatabase {
         }
     };
 
+    /** 4 to 5: tool calls and tool results are stored with the messages. Only new columns. */
+    static final Migration MIGRATION_4_5 = new Migration(4, 5) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            addColumnIfMissing(db, "messages", "toolCallsJson", "TEXT");
+            addColumnIfMissing(db, "messages", "toolCallId", "TEXT");
+            addColumnIfMissing(db, "messages", "toolName", "TEXT");
+            addColumnIfMissing(db, "messages", "toolError", "INTEGER NOT NULL DEFAULT 0");
+            addColumnIfMissing(db, "messages", "toolMs", "INTEGER NOT NULL DEFAULT 0");
+        }
+    };
+
     private static void addColumnIfMissing(SupportSQLiteDatabase db, String table, String column, String ddl) {
         boolean found = false;
         Cursor c = db.query("PRAGMA table_info(`" + table + "`)");
@@ -93,7 +105,7 @@ public abstract class AppDatabase extends RoomDatabase {
     public static synchronized AppDatabase get(Context c) {
         if (instance == null) {
             instance = Room.databaseBuilder(c.getApplicationContext(), AppDatabase.class, "sentia.db")
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .fallbackToDestructiveMigrationOnDowngrade()
                     .build();
         }

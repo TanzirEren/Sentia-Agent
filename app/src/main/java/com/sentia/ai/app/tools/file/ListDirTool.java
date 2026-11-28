@@ -33,6 +33,12 @@ public class ListDirTool implements Tool {
     }
 
     @Override
+    public String summary(JSONObject input) {
+        String p = input.optString("path", "").trim();
+        return p.isEmpty() ? "./" : p;
+    }
+
+    @Override
     public boolean needsPermission(JSONObject input) {
         return false;
     }
@@ -51,7 +57,6 @@ public class ListDirTool implements Tool {
         final StringBuilder sb = new StringBuilder();
         final int[] count = {0};
         final boolean[] cut = {false};
-        final int baseDepth = base.isEmpty() ? 0 : base.split("/").length;
         sb.append(base.isEmpty() ? "./" : base + "/").append('\n');
         fs.walk(base, depth, (e, d) -> {
             if (count[0] >= MAX_ENTRIES) {

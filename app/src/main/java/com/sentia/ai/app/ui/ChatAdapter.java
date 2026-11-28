@@ -58,6 +58,7 @@ public class ChatAdapter extends ListAdapter<MessageEntity, RecyclerView.ViewHol
     private static final int T_USER = 0, T_AI = 1, T_ERR = 2;
     private static final String PAYLOAD_CONTENT = "content";
     private static final String PAYLOAD_FOOTER = "footer";
+    private static final String PAYLOAD_TOOLS = "tools";
 
     private static final DiffUtil.ItemCallback<MessageEntity> DIFF = new DiffUtil.ItemCallback<MessageEntity>() {
         @Override
@@ -68,7 +69,8 @@ public class ChatAdapter extends ListAdapter<MessageEntity, RecyclerView.ViewHol
         @Override
         public boolean areContentsTheSame(@NonNull MessageEntity a, @NonNull MessageEntity b) {
             return eq(a.role, b.role) && eq(a.content, b.content) && a.status == b.status
-                    && a.tokensOut == b.tokensOut && eq(a.attachmentsJson, b.attachmentsJson);
+                    && a.tokensOut == b.tokensOut && eq(a.attachmentsJson, b.attachmentsJson)
+                    && eq(a.toolCallsJson, b.toolCallsJson);
         }
 
         @Override
@@ -89,6 +91,11 @@ public class ChatAdapter extends ListAdapter<MessageEntity, RecyclerView.ViewHol
     private final SyntaxHighlighter highlighter;
     private final Gson gson = new Gson();
     private long lastAssistantId = -1;
+    // tool results are saved as their own messages; they are not shown as rows but inside the tool cards
+    private final java.util.Map<String, MessageEntity> toolResults = new java.util.HashMap<>();
+    private final java.util.Map<Long, String> toolSigs = new java.util.HashMap<>();
+    private final java.util.Set<String> openedCalls = new java.util.HashSet<>();
+    private boolean busy;
     private final Typeface tfLight;
     private final Typeface tfRegular;
 
@@ -135,19 +142,46 @@ public class ChatAdapter extends ListAdapter<MessageEntity, RecyclerView.ViewHol
     }
 
     public void submit(List<MessageEntity> list, Runnable onCommitted) {
+        // split the saved messages into rows and tool results
+        List<MessageEntity> rows = new ArrayList<>();
+        toolResults.clear();
+        for (MessageEntity m : list) {
+            if ("tool".equals(m.role)) {
+                if (m.toolCallId != null) toolResults.put(m.toolCallId, m);
+            } else {
+                rows.add(m);
+            }
+        }
+        // which assistant rows got a new tool result since last time
+        final List<Long> toolChanged = new ArrayList<>();
+        java.util.Map<Long, String> sigs = new java.util.HashMap<>();
+        for (MessageEntity m : rows) {
+            if (!"assistant".equals(m.role) || m.toolCallsJson == null || m.toolCallsJson.isEmpty()) continue;
+            StringBuilder sig = new StringBuilder();
+            for (com.sentia.ai.app.net.ToolCall c : com.sentia.ai.app.agent.HistoryBuilder.parseCalls(m.toolCallsJson)) {
+                MessageEntity r = toolResults.get(c.id);
+                sig.append(c.id).append(r == null ? "-" : (r.toolError ? "e" : "o")).append(';');
+            }
+            sigs.put(m.id, sig.toString());
+            String old = toolSigs.get(m.id);
+            if (old != null && !old.equals(sig.toString())) toolChanged.add(m.id);
+        }
+        toolSigs.clear();
+        toolSigs.putAll(sigs);
+
         long newLast = -1;
-        for (int i = list.size() - 1; i >= 0; i--) {
-            String r = list.get(i).role;
+        for (int i = rows.size() - 1; i >= 0; i--) {
+            String r = rows.get(i).role;
             if ("assistant".equals(r)) {
-                newLast = list.get(i).id;
+                newLast = rows.get(i).id;
                 break;
             }
         }
         final long oldLast = lastAssistantId;
         lastAssistantId = newLast;
-        submitList(new ArrayList<>(list), () -> {
+        submitList(rows, () -> {
+            List<MessageEntity> cur = getCurrentList();
             if (oldLast != -1 && oldLast != lastAssistantId) {
-                List<MessageEntity> cur = getCurrentList();
                 for (int i = 0; i < cur.size(); i++) {
                     if (cur.get(i).id == oldLast) {
                         notifyItemChanged(i, PAYLOAD_FOOTER);
@@ -155,8 +189,23 @@ public class ChatAdapter extends ListAdapter<MessageEntity, RecyclerView.ViewHol
                     }
                 }
             }
+            for (long id : toolChanged) {
+                for (int i = 0; i < cur.size(); i++) {
+                    if (cur.get(i).id == id) {
+                        notifyItemChanged(i, PAYLOAD_TOOLS);
+                        break;
+                    }
+                }
+            }
             if (onCommitted != null) onCommitted.run();
         });
+    }
+
+    /** While the agent runs, a call without result shows a spinner; afterwards it shows "not run". */
+    public void setBusy(boolean b) {
+        if (busy == b) return;
+        busy = b;
+        if (getItemCount() > 0) notifyItemRangeChanged(0, getItemCount(), PAYLOAD_TOOLS);
     }
 
     @Override
@@ -199,6 +248,7 @@ public class ChatAdapter extends ListAdapter<MessageEntity, RecyclerView.ViewHol
             MessageEntity m = getItem(position);
             if (payloads.contains(PAYLOAD_FOOTER)) ((AiHolder) h).bindFooter(m);
             if (payloads.contains(PAYLOAD_CONTENT)) ((AiHolder) h).bindContent(m);
+            if (payloads.contains(PAYLOAD_TOOLS)) ((AiHolder) h).bindTools(m);
         } else {
             onBindViewHolder(h, position);
         }
@@ -275,6 +325,7 @@ public class ChatAdapter extends ListAdapter<MessageEntity, RecyclerView.ViewHol
         final LinearLayout blocks;
         final View dots;
         final View footer;
+        final LinearLayout toolCards;
         final ImageButton btnCopy, btnRegen, btnMore;
         final TextView meta;
         final List<Integer> types = new ArrayList<>();
@@ -284,6 +335,7 @@ public class ChatAdapter extends ListAdapter<MessageEntity, RecyclerView.ViewHol
             blocks = v.findViewById(R.id.blocks);
             dots = v.findViewById(R.id.dots);
             footer = v.findViewById(R.id.footer);
+            toolCards = v.findViewById(R.id.toolCards);
             btnCopy = v.findViewById(R.id.btnCopy);
             btnRegen = v.findViewById(R.id.btnRegen);
             btnMore = v.findViewById(R.id.btnMore);
@@ -292,12 +344,18 @@ public class ChatAdapter extends ListAdapter<MessageEntity, RecyclerView.ViewHol
 
         void bind(MessageEntity m, boolean full) {
             bindContent(m);
+            bindTools(m);
             bindFooter(m);
+        }
+
+        void bindTools(MessageEntity m) {
+            ToolCardBinder.bind(ctx, toolCards, m, toolResults, busy, openedCalls);
         }
 
         void bindFooter(MessageEntity m) {
             boolean streaming = m.status == MessageEntity.STREAMING;
-            footer.setVisibility(streaming ? View.GONE : View.VISIBLE);
+            boolean toolOnly = (m.content == null || m.content.isEmpty()) && m.toolCallsJson != null && !m.toolCallsJson.isEmpty();
+            footer.setVisibility(streaming || toolOnly ? View.GONE : View.VISIBLE);
             btnRegen.setVisibility(m.id == lastAssistantId ? View.VISIBLE : View.GONE);
             btnCopy.setOnClickListener(v -> listener.onCopy(m));
             btnRegen.setOnClickListener(v -> listener.onRegenerate(m));

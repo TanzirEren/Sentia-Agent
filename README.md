@@ -1,4 +1,4 @@
-# Sentia (v0.0.5) — Phase 1 + 2A
+# Sentia (v0.0.6) — Phase 1 + 2A + 2B
 
 Mobile AI agent app. Package: `com.sentia.ai.app`. Java + XML, Material 3, min SDK 24.
 
@@ -127,3 +127,29 @@ New libraries: Sora Editor 0.23.4 (`editor`, `language-textmate`), core library 
 `androidx.documentfile`. Bundled: TextMate grammars (VS Code, MIT), JetBrains Mono (OFL).
 
 Not verified on a device: everything in 2A. See the delivery notes for the exact checks that were run.
+
+## Added in 2B (v0.0.6): the first agent loop (read-only tools)
+
+In a project chat whose project has a workspace, the AI can now look at your files by itself.
+
+- **Tool calling for both protocols.** OpenAI-style (`tool_calls`, works for OpenRouter, Groq, DeepSeek, Ollama,
+  Gemini compat and others) and Anthropic (`tool_use` / `tool_result`). Streamed arguments are put together from
+  pieces. Providers that send index 0 for every call, or no id at all, are handled. The protocol code is in
+  `net/OpenAiProtocol` and `net/AnthropicProtocol`, separate from the network code.
+- **Agent loop.** The model replies, asks for `Read` / `ListDir`, Sentia runs them, sends the results back and the
+  model continues, until it answers. Limit: Settings > AI agent > Max tool rounds (default 12). When the limit is
+  reached a message appears; Retry lets the AI go on.
+- **Safe history.** A call is always sent together with its result. After Stop or a crash the broken part is repaired
+  (`agent/HistoryBuilder`), because providers refuse a call without a result. Old tool results are shortened.
+- **Errors go back to the model.** Unknown tool, bad JSON arguments, a missing file, a crash: the model gets the error
+  text and can try again. Output over 30000 characters is cut with a marker. Stop answers the open calls
+  ("cancelled") and ends the run.
+- **Tool cards** in the chat: tool, short input (file path), status (running, ms, failed, not run). Tap to open input
+  and output.
+- **Tools on or off.** Settings > AI agent (all chats) and a **Tools** tag on every model in AI Providers (tap to turn
+  tools off for models that do not support them). If a provider rejects tools, the error explains how to switch them off.
+- Database version 5 (migration 4 to 5: five new columns on `messages`, nothing removed).
+- Search ignores tool output.
+
+Not in 2B: writing files, permission questions, diff (2C), loop guard for repeated identical calls (2D).
+Not verified on a device: everything in 2B.

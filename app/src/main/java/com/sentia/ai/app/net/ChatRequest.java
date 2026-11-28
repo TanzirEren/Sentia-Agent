@@ -17,4 +17,6 @@ public class ChatRequest {
     /** 0 = let the model decide */
     public int maxTokens = 0;
     public List<ChatMsg> messages = new ArrayList<>();
+    /** Tools the model may call. Empty = plain chat. */
+    public List<ToolSpec> tools = new ArrayList<>();
 }

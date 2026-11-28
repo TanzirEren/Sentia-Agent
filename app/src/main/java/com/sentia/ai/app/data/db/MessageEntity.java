@@ -21,7 +21,7 @@ public class MessageEntity {
     @PrimaryKey(autoGenerate = true)
     public long id;
     public long sessionId;
-    /** "user", "assistant" or "error" */
+    /** "user", "assistant", "tool" (a tool result) or "error" */
     public String role;
     public String content;
     public String attachmentsJson;
@@ -30,6 +30,14 @@ public class MessageEntity {
     public int tokensOut;
     public long createdAt;
     public int status;
+    /** Assistant messages: JSON list of the tool calls (id, name, argsJson). Null when there are none. */
+    public String toolCallsJson;
+    /** Tool messages: the id of the call this result answers, and the tool name. */
+    public String toolCallId;
+    public String toolName;
+    public boolean toolError;
+    /** Tool messages: how long the tool ran, in milliseconds. */
+    public long toolMs;
 
     public MessageEntity copy() {
         MessageEntity m = new MessageEntity();
@@ -43,6 +51,11 @@ public class MessageEntity {
         m.tokensOut = tokensOut;
         m.createdAt = createdAt;
         m.status = status;
+        m.toolCallsJson = toolCallsJson;
+        m.toolCallId = toolCallId;
+        m.toolName = toolName;
+        m.toolError = toolError;
+        m.toolMs = toolMs;
         return m;
     }
 }

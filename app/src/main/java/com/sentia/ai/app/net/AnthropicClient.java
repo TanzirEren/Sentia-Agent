@@ -1,8 +1,6 @@
 package com.sentia.ai.app.net;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -24,38 +22,7 @@ public class AnthropicClient implements LlmClient {
         if (base.isEmpty()) base = "https://api.anthropic.com/v1";
         while (base.endsWith("/")) base = base.substring(0, base.length() - 1);
 
-        JsonObject body = new JsonObject();
-        body.addProperty("model", r.modelId);
-        body.addProperty("max_tokens", r.maxTokens > 0 ? r.maxTokens : 8192);
-        if (r.temperature != null) body.addProperty("temperature", Math.min(1f, r.temperature));
-        body.addProperty("stream", true);
-        if (r.systemPrompt != null && !r.systemPrompt.trim().isEmpty()) {
-            body.addProperty("system", r.systemPrompt);
-        }
-        JsonArray msgs = new JsonArray();
-        for (ChatMsg m : r.messages) {
-            if (!"user".equals(m.role) && !"assistant".equals(m.role)) continue;
-            JsonObject o = new JsonObject();
-            o.addProperty("role", m.role);
-            JsonArray blocks = new JsonArray();
-            for (ChatMsg.ImagePart ip : m.images) {
-                JsonObject b = new JsonObject();
-                b.addProperty("type", "image");
-                JsonObject src = new JsonObject();
-                src.addProperty("type", "base64");
-                src.addProperty("media_type", ip.mime);
-                src.addProperty("data", ip.b64);
-                b.add("source", src);
-                blocks.add(b);
-            }
-            JsonObject t = new JsonObject();
-            t.addProperty("type", "text");
-            t.addProperty("text", m.text == null || m.text.isEmpty() ? " " : m.text);
-            blocks.add(t);
-            o.add("content", blocks);
-            msgs.add(o);
-        }
-        body.add("messages", msgs);
+        JsonObject body = AnthropicProtocol.body(r);
 
         Request req = new Request.Builder()
                 .url(base + "/messages")
@@ -69,6 +36,7 @@ public class AnthropicClient implements LlmClient {
         final AtomicBoolean done = new AtomicBoolean(false);
         final AtomicInteger inTokens = new AtomicInteger(0);
         final AtomicInteger outTokens = new AtomicInteger(0);
+        final AnthropicProtocol.Parser parser = new AnthropicProtocol.Parser(listener);
 
         EventSource es;
         try {
@@ -91,43 +59,11 @@ public class AnthropicClient implements LlmClient {
                 @Override
                 public void onEvent(EventSource source, String id, String type, String data) {
                     if (data == null) return;
-                    try {
-                        JsonObject j = JsonParser.parseString(data.trim()).getAsJsonObject();
-                        String t = j.has("type") ? j.get("type").getAsString() : (type == null ? "" : type);
-                        switch (t) {
-                            case "message_start":
-                                if (j.has("message") && j.getAsJsonObject("message").has("usage")) {
-                                    JsonObject u = j.getAsJsonObject("message").getAsJsonObject("usage");
-                                    if (u.has("input_tokens")) inTokens.set(u.get("input_tokens").getAsInt());
-                                }
-                                break;
-                            case "content_block_delta":
-                                if (j.has("delta")) {
-                                    JsonObject d = j.getAsJsonObject("delta");
-                                    if (d.has("text") && !d.get("text").isJsonNull()) {
-                                        String s = d.get("text").getAsString();
-                                        if (!s.isEmpty()) l.onDelta(s);
-                                    }
-                                }
-                                break;
-                            case "message_delta":
-                                if (j.has("usage") && j.getAsJsonObject("usage").has("output_tokens")) {
-                                    outTokens.set(j.getAsJsonObject("usage").get("output_tokens").getAsInt());
-                                }
-                                break;
-                            case "message_stop":
-                                finish();
-                                break;
-                            case "error": {
-                                String m = ApiErrors.fromObject(j);
-                                fail(m == null ? "Provider returned an error" : m);
-                                break;
-                            }
-                            default:
-                                break;
-                        }
-                    } catch (Exception ignored) {
-                    }
+                    int res = parser.feed(type, data);
+                    inTokens.set(parser.inTokens);
+                    outTokens.set(parser.outTokens);
+                    if (res == AnthropicProtocol.Parser.STOP) finish();
+                    else if (res == AnthropicProtocol.Parser.ERROR) fail(parser.error);
                 }
 
                 @Override

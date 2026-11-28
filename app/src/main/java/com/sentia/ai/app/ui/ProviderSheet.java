@@ -56,12 +56,14 @@ public final class ProviderSheet {
         final CheckBox cb;
         final TextView id;
         final TextView free;
+        final TextView tools;
 
         ModelVH(View v) {
             super(v);
             cb = v.findViewById(R.id.cbModel);
             id = v.findViewById(R.id.tvEditModelId);
             free = v.findViewById(R.id.tvEditFree);
+            tools = v.findViewById(R.id.tvEditTools);
         }
     }
 
@@ -257,6 +259,12 @@ public final class ProviderSheet {
                     h.id.setText(m.id);
                     h.cb.setChecked(m.enabled);
                     h.free.setVisibility(m.free ? View.VISIBLE : View.GONE);
+                    h.tools.setAlpha(m.tools ? 1f : 0.3f);
+                    h.tools.setOnClickListener(v -> {
+                        m.tools = !m.tools;
+                        h.tools.setAlpha(m.tools ? 1f : 0.3f);
+                        Toast.makeText(ctx, m.tools ? R.string.model_tools_on : R.string.model_tools_off, Toast.LENGTH_SHORT).show();
+                    });
                     h.itemView.setOnClickListener(v -> {
                         m.enabled = !m.enabled;
                         h.cb.setChecked(m.enabled);

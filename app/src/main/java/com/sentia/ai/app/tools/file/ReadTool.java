@@ -37,6 +37,18 @@ public class ReadTool implements Tool {
     }
 
     @Override
+    public String summary(JSONObject input) {
+        String p = input.optString("path", "").trim();
+        int off = input.optInt("offset", 0);
+        int lim = input.optInt("limit", 0);
+        if (off > 1 || lim > 0) {
+            int from = Math.max(1, off);
+            return p + (lim > 0 ? "  (lines " + from + "-" + (from + lim - 1) + ")" : "  (from line " + from + ")");
+        }
+        return p;
+    }
+
+    @Override
     public boolean needsPermission(JSONObject input) {
         return false;
     }

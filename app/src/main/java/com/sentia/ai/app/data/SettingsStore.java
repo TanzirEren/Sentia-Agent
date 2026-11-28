@@ -121,6 +121,28 @@ public class SettingsStore {
     public boolean showHiddenFiles() { return p.getBoolean("ws_show_hidden", false); }
     public void setShowHiddenFiles(boolean v) { p.edit().putBoolean("ws_show_hidden", v).apply(); }
 
+    // ---- agent (Phase 2B)
+    public static final int AGENT_ROUNDS_MIN = 2, AGENT_ROUNDS_MAX = 40, AGENT_ROUNDS_DEFAULT = 12;
+
+    /** Lets the AI use the project workspace through tools. */
+    public boolean agentEnabled() { return p.getBoolean("agent_enabled", true); }
+    public void setAgentEnabled(boolean v) { p.edit().putBoolean("agent_enabled", v).apply(); }
+
+    /** How many tool rounds one user message may use. A bad stored value is repaired. */
+    public int agentMaxRounds() {
+        int v;
+        try {
+            v = p.getInt("agent_rounds", AGENT_ROUNDS_DEFAULT);
+        } catch (ClassCastException e) {
+            v = AGENT_ROUNDS_DEFAULT;
+        }
+        if (v < AGENT_ROUNDS_MIN || v > AGENT_ROUNDS_MAX) v = AGENT_ROUNDS_DEFAULT;
+        return v;
+    }
+    public void setAgentMaxRounds(int v) {
+        p.edit().putInt("agent_rounds", Math.max(AGENT_ROUNDS_MIN, Math.min(AGENT_ROUNDS_MAX, v))).apply();
+    }
+
     public boolean markdown() { return p.getBoolean("markdown", true); }
     public void setMarkdown(boolean v) { p.edit().putBoolean("markdown", v).apply(); }
 

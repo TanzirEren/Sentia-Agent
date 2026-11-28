@@ -1,5 +1,6 @@
 package com.sentia.ai.app.tools;
 
+import com.sentia.ai.app.net.ToolSpec;
 import com.sentia.ai.app.tools.file.ListDirTool;
 import com.sentia.ai.app.tools.file.ReadTool;
 import com.sentia.ai.app.workspace.WsException;
@@ -57,6 +58,13 @@ public final class ToolRegistry {
             }
         }
         return arr;
+    }
+
+    /** The tools in the form the network layer sends to the model. */
+    public synchronized List<ToolSpec> specs() {
+        List<ToolSpec> out = new ArrayList<>();
+        for (Tool t : tools.values()) out.add(new ToolSpec(t.name(), t.description(), t.jsonSchema()));
+        return out;
     }
 
     /** Runs a tool. Any failure comes back as an error result, so the model can retry. */

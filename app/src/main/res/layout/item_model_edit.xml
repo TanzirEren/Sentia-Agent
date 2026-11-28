@@ -26,6 +26,21 @@
         android:textSize="13sp" />
 
     <TextView
+        android:id="@+id/tvEditTools"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:background="@drawable/bg_chip"
+        android:paddingStart="8dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="4dp"
+        android:text="@string/tools_tag"
+        android:textColor="@color/ink"
+        android:textSize="10sp"
+        android:textStyle="bold" />
+
+    <TextView
         android:id="@+id/tvEditFree"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

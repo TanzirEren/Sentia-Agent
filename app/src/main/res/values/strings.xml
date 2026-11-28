@@ -544,4 +544,24 @@ TextMate grammars from Visual Studio Code (MIT)</string>
     <string name="ed_toolarge_sub">Files bigger than 8 MB cannot be opened in the editor.</string>
     <string name="ed_image_fail_title">Cannot show this image</string>
     <string name="ed_image_fail_sub">The image could not be decoded.</string>
+
+    <!-- 2B: agent and tool cards -->
+    <string name="sec_agent">AI agent</string>
+    <string name="set_agent_on">Let the AI use project files</string>
+    <string name="set_agent_on_sub">In a project chat with a workspace, the AI can look at your files with tools. Models that do not support tools can be switched off in AI Providers.</string>
+    <string name="set_agent_rounds">Max tool rounds per message</string>
+    <string name="tools_tag">Tools</string>
+    <string name="model_tools_on">Tools on for this model</string>
+    <string name="model_tools_off">Tools off for this model. It will only chat.</string>
+    <string name="err_tools_hint">This model may not support tools. In AI Providers, tap the Tools tag of this model to switch tools off for it.</string>
+    <string name="agent_limit">The AI used all %1$d tool rounds for this message. Tap Retry to let it continue.</string>
+    <string name="tool_input">Input</string>
+    <string name="tool_output">Output</string>
+    <string name="tool_no_output">(no output)</string>
+    <string name="tool_cut">... only the first part is shown</string>
+    <string name="tool_running">running</string>
+    <string name="tool_failed">failed</string>
+    <string name="tool_not_run">not run</string>
+    <string name="tool_ms">%1$d ms</string>
+    <string name="tool_bad_args">invalid arguments</string>
 </resources>

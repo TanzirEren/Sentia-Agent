@@ -26,7 +26,7 @@ public interface SessionDao {
     LiveData<List<SessionEntity>> all();
 
     @Query("SELECT * FROM sessions WHERE title LIKE :q OR id IN "
-            + "(SELECT sessionId FROM messages WHERE content LIKE :q) ORDER BY updatedAt DESC")
+            + "(SELECT sessionId FROM messages WHERE role != 'tool' AND content LIKE :q) ORDER BY updatedAt DESC")
     LiveData<List<SessionEntity>> search(String q);
 
     @Query("UPDATE sessions SET title = :title WHERE id = :id")

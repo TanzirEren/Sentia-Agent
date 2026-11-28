@@ -12,6 +12,11 @@ import androidx.lifecycle.MediatorLiveData;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import com.sentia.ai.app.agent.AgentLoop;
+import com.sentia.ai.app.agent.AgentPrompt;
+import com.sentia.ai.app.agent.AgentSession;
+import com.sentia.ai.app.agent.HistoryBuilder;
+import com.sentia.ai.app.agent.PermissionGate;
 import com.sentia.ai.app.data.KeyRotator;
 import com.sentia.ai.app.data.ProjectRepo;
 import com.sentia.ai.app.data.ProfileStore;
@@ -31,6 +36,11 @@ import com.sentia.ai.app.net.ChatRequest;
 import com.sentia.ai.app.net.ClientFactory;
 import com.sentia.ai.app.net.LlmClient;
 import com.sentia.ai.app.net.StreamListener;
+import com.sentia.ai.app.net.ToolCall;
+import com.sentia.ai.app.tools.ToolContext;
+import com.sentia.ai.app.tools.ToolRegistry;
+import com.sentia.ai.app.workspace.WorkspaceManager;
+import com.sentia.ai.app.workspace.WsException;
 import com.sentia.ai.app.util.AttachmentUtil;
 import com.sentia.ai.app.util.ImageUtil;
 import com.sentia.ai.app.util.MemoryTags;
@@ -58,6 +68,8 @@ public class ChatViewModel extends AndroidViewModel {
     private final SettingsStore settings;
     private final ProviderStore providers;
     private final ExecutorService io = Executors.newSingleThreadExecutor();
+    /** Runs tools, so a slow tool never blocks the database thread. */
+    private final ExecutorService toolExec = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Gson gson = new Gson();
 
@@ -80,6 +92,11 @@ public class ChatViewModel extends AndroidViewModel {
     private boolean flushPending;
     private volatile int lastRequestChars;
     private final Set<Integer> triedKeys = new HashSet<>();
+    // agent (Phase 2B): tool calls of the reply that is streaming, and the run they belong to
+    private final List<ToolCall> streamCalls = new ArrayList<>();
+    private volatile AgentSession agent;
+    private boolean toolsPhase;
+    private boolean awaitingStream;
     private long pendingFolderId = 0;
     private long streamFolderId = 0;
     private final MutableLiveData<Long> currentFolderLive = new MutableLiveData<>(0L);
@@ -318,7 +335,7 @@ public class ChatViewModel extends AndroidViewModel {
                 u.status = MessageEntity.DONE;
                 u.id = db.messageDao().insert(u);
                 db.sessionDao().touch(sid, now);
-                beginAssistant(sid, p, modelId);
+                beginAssistant(sid, p, modelId, true);
             } catch (Exception e) {
                 postFail(e);
             }
@@ -343,7 +360,7 @@ public class ChatViewModel extends AndroidViewModel {
         io.execute(() -> {
             try {
                 db.messageDao().deleteFrom(sid, cutFrom);
-                beginAssistant(sid, p, modelId);
+                beginAssistant(sid, p, modelId, true);
             } catch (Exception e) {
                 postFail(e);
             }
@@ -352,27 +369,50 @@ public class ChatViewModel extends AndroidViewModel {
 
     private void postFail(Exception e) {
         main.post(() -> {
+            awaitingStream = false;
+            toolsPhase = false;
             streaming.setValue(false);
             toast.setValue("Error: " + (e.getMessage() == null ? e.toString() : e.getMessage()));
         });
     }
 
-    /** Runs on the io thread. Builds the request, inserts the empty reply, then starts streaming on main. */
-    private void beginAssistant(final long sid, final Provider p, final String modelId) {
+    /**
+     * Runs on the io thread. Builds the request, inserts the empty reply, then starts streaming on main.
+     * fresh = a new run for a message of the user; false = the next round of a running agent.
+     */
+    private void beginAssistant(final long sid, final Provider p, final String modelId, final boolean fresh) {
+        final AgentSession cont = fresh ? null : agent;
+        if (!fresh && (cont == null || cont.cancelled)) {
+            main.post(() -> {
+                awaitingStream = false;
+                streaming.setValue(false);
+            });
+            return;
+        }
         List<MessageEntity> history = db.messageDao().list(sid);
         String extra = "";
         long folderOfChat = 0;
+        FolderEntity folderRef = null;
         SessionEntity sess = db.sessionDao().get(sid);
         if (sess != null && sess.folderId != 0) {
             FolderEntity folder = db.folderDao().get(sess.folderId);
             if (folder != null) {
+                folderRef = folder;
                 folderOfChat = folder.id;
                 List<ProjectFileEntity> files = db.projectFileDao().list(folder.id);
                 extra = ProjectContext.build(folder, files, lastUserText(history));
             }
         }
         final long folderForStream = folderOfChat;
-        final ChatRequest req = buildRequest(history, p, modelId, extra);
+
+        // tools only in a project chat whose project has a workspace, with a model that allows tools
+        final boolean toolsOn = folderRef != null && settings.agentEnabled() && folderRef.workspaceLinked
+                && WorkspaceManager.exists(getApplication(), folderRef.id) && modelAllowsTools(p, modelId);
+        final int maxRounds = settings.agentMaxRounds();
+        if (toolsOn) extra = extra + "\n\n" + AgentPrompt.block(folderRef.name == null ? "" : folderRef.name, maxRounds, ToolRegistry.get());
+        final AgentSession fresh1 = (fresh && toolsOn)
+                ? new AgentSession(sid, folderRef.id, folderRef.name, p, modelId, maxRounds) : null;
+        final ChatRequest req = buildRequest(history, p, modelId, extra, toolsOn);
 
         MessageEntity a = new MessageEntity();
         a.sessionId = sid;
@@ -388,6 +428,17 @@ public class ChatViewModel extends AndroidViewModel {
         final SessionEntity s = db.sessionDao().get(sid);
         final long msgId = a.id;
         main.post(() -> {
+            if (!fresh) {
+                awaitingStream = false;
+                if (cont == null || cont.cancelled || sessionId != sid) {
+                    // stopped while the next round was being prepared: drop the empty reply
+                    io.execute(() -> db.messageDao().delete(msgId));
+                    streaming.setValue(false);
+                    return;
+                }
+            } else {
+                agent = fresh1;
+            }
             sessionId = sid;
             streamFolderId = folderForStream;
             currentFolderLive.setValue(s == null ? 0L : s.folderId);
@@ -398,6 +449,13 @@ public class ChatViewModel extends AndroidViewModel {
             triedKeys.add(req.keyIndex);
             startStream(req, msgId);
         });
+    }
+
+    private static boolean modelAllowsTools(Provider p, String modelId) {
+        if (p.models != null) {
+            for (ModelEntry m : p.models) if (modelId.equals(m.id)) return m.tools;
+        }
+        return true;
     }
 
     /** The last two user messages joined, used to pick the matching project file excerpts. */
@@ -414,7 +472,7 @@ public class ChatViewModel extends AndroidViewModel {
         return sb.toString();
     }
 
-    private ChatRequest buildRequest(List<MessageEntity> history, Provider p, String modelId, String extra) {
+    private ChatRequest buildRequest(List<MessageEntity> history, Provider p, String modelId, String extra, boolean toolsOn) {
         ChatRequest r = new ChatRequest();
         r.provider = p;
         r.modelId = modelId;
@@ -424,21 +482,17 @@ public class ChatViewModel extends AndroidViewModel {
         r.apiKey = ki >= 0 ? KeyRotator.keyAt(p, ki) : "";
         r.temperature = settings.temperatureEnabled() ? Float.valueOf(settings.temperature()) : null;
         r.maxTokens = settings.maxTokens();
+        if (toolsOn) r.tools = ToolRegistry.get().specs();
 
-        List<ChatMsg> out = new ArrayList<>();
-        int budget = settings.contextChars();
+        // HistoryBuilder keeps every tool call together with its result and trims old context
+        List<ChatMsg> out = HistoryBuilder.build(history, settings.contextChars(), toolsOn, new HistoryBuilder.UserConverter() {
+            @Override
+            public ChatMsg convert(MessageEntity m) {
+                return toChatMsg(m);
+            }
+        });
         int chars = 0;
-        for (int i = history.size() - 1; i >= 0; i--) {
-            MessageEntity m = history.get(i);
-            if (!"user".equals(m.role) && !"assistant".equals(m.role)) continue;
-            boolean noText = m.content == null || m.content.isEmpty();
-            if (noText && m.attachmentsJson == null) continue;
-            ChatMsg c = toChatMsg(m);
-            chars += c.text.length();
-            out.add(0, c);
-            if (chars > budget && out.size() > 1) break;
-        }
-        while (!out.isEmpty() && !"user".equals(out.get(0).role)) out.remove(0);
+        for (ChatMsg c : out) chars += c.text == null ? 0 : c.text.length();
         r.messages = out;
         lastRequestChars = chars + (r.systemPrompt == null ? 0 : r.systemPrompt.length());
         return r;
@@ -503,6 +557,8 @@ public class ChatViewModel extends AndroidViewModel {
         gotUsage = false;
         usageIn = 0;
         usageOut = 0;
+        streamCalls.clear();
+        awaitingStream = false;
         streaming.setValue(true);
 
         LlmClient client = ClientFactory.forProvider(req.provider);
@@ -527,6 +583,14 @@ public class ChatViewModel extends AndroidViewModel {
             }
 
             @Override
+            public void onToolCall(final ToolCall tc) {
+                main.post(() -> {
+                    if (token != streamToken) return;
+                    streamCalls.add(tc);
+                });
+            }
+
+            @Override
             public void onDone() {
                 main.post(() -> {
                     if (token != streamToken) return;
@@ -540,7 +604,14 @@ public class ChatViewModel extends AndroidViewModel {
                     if (token != streamToken) return;
                     boolean keyProblem = code == 401 || code == 402 || code == 403 || code == 429;
                     if (sb.length() == 0 && keyProblem && rotateKey(req, msgId, code)) return;
-                    finishStream(MessageEntity.STOPPED, message == null ? "Unknown error" : message);
+                    String shown = message == null ? "Unknown error" : message;
+                    if (!req.tools.isEmpty() && (code == 400 || code == 404 || code == 422)) {
+                        String low = shown.toLowerCase(Locale.ROOT);
+                        if (low.contains("tool") || low.contains("function")) {
+                            shown = shown + "\n\n" + getApplication().getString(com.sentia.ai.app.R.string.err_tools_hint);
+                        }
+                    }
+                    finishStream(MessageEntity.STOPPED, shown);
                 });
             }
 
@@ -621,6 +692,15 @@ public class ChatViewModel extends AndroidViewModel {
 
     public void stop() {
         if (!Boolean.TRUE.equals(streaming.getValue())) return;
+        AgentSession a = agent;
+        if (a != null) a.cancelled = true;
+        if (toolsPhase) return; // the tool thread answers the open calls, then ends the run
+        if (awaitingStream) {
+            // the next round is being prepared: it sees the flag and drops itself
+            awaitingStream = false;
+            streaming.setValue(false);
+            return;
+        }
         if (call != null) {
             try {
                 call.cancel();
@@ -633,6 +713,8 @@ public class ChatViewModel extends AndroidViewModel {
     private void finishStream(int status, String error) {
         call = null;
         streamToken++;
+        final List<ToolCall> calls = new ArrayList<>(streamCalls);
+        streamCalls.clear();
         final String raw = sb.toString();
         final String content = streamFolderId != 0 ? MemoryTags.strip(raw) : raw;
         if (streamFolderId != 0 && error == null) {
@@ -643,6 +725,10 @@ public class ChatViewModel extends AndroidViewModel {
             }
         }
         final boolean isError = error != null;
+        final AgentSession run = agent;
+        // the reply asked for tools: run them, then ask the model again
+        final boolean toolRound = !isError && status == MessageEntity.DONE && !calls.isEmpty()
+                && run != null && !run.cancelled;
         List<MessageEntity> l = new ArrayList<>(cur());
         int idx = -1;
         for (int i = l.size() - 1; i >= 0; i--) {
@@ -651,7 +737,7 @@ public class ChatViewModel extends AndroidViewModel {
                 break;
             }
         }
-        streaming.setValue(false);
+        if (!toolRound || idx < 0) streaming.setValue(false);
         if (idx < 0) return;
 
         final MessageEntity c = l.get(idx).copy();
@@ -678,6 +764,7 @@ public class ChatViewModel extends AndroidViewModel {
                 c.tokensIn = lastRequestChars / 4;
                 c.tokensOut = TokenEstimator.estimate(content);
             }
+            if (toolRound) c.toolCallsJson = gson.toJson(calls);
         }
         l.set(idx, c);
         setList(l);
@@ -685,6 +772,88 @@ public class ChatViewModel extends AndroidViewModel {
         io.execute(() -> {
             db.messageDao().update(c);
             db.sessionDao().touch(c.sessionId, now);
+        });
+        if (toolRound) runTools(c, calls, run);
+    }
+
+    // ------------------------------------------------------------ agent: tools and the next round
+
+    /** Runs the calls of one reply on the tool thread. Each result is saved and shown as soon as it is ready. */
+    private void runTools(final MessageEntity assistantMsg, final List<ToolCall> calls, final AgentSession run) {
+        run.rounds++;
+        toolsPhase = true;
+        final long sid = assistantMsg.sessionId;
+        final ToolRegistry reg = ToolRegistry.get();
+        toolExec.execute(() -> {
+            AgentLoop.Sink sink = new AgentLoop.Sink() {
+                @Override
+                public void onResult(ToolCall tc, com.sentia.ai.app.tools.ToolResult r, long millis) {
+                    final MessageEntity t = AgentLoop.resultMessage(sid, tc, r, millis);
+                    t.id = db.messageDao().insert(t);
+                    main.post(() -> {
+                        if (sessionId != sid) return;
+                        List<MessageEntity> now = new ArrayList<>(cur());
+                        now.add(t);
+                        setList(now);
+                    });
+                }
+            };
+            ToolContext ctx = null;
+            try {
+                ctx = new ToolContext(getApplication(), run.projectId,
+                        WorkspaceManager.fs(getApplication(), run.projectId, false));
+            } catch (WsException e) {
+                ctx = null;
+            }
+            if (ctx == null) {
+                for (ToolCall tc : calls) {
+                    sink.onResult(tc, com.sentia.ai.app.tools.ToolResult.error("The project workspace is not available."), 0);
+                }
+            } else {
+                AgentLoop.runBatch(run, calls, ctx, reg, PermissionGate.ALLOW_ALL, sink);
+            }
+            main.post(() -> afterTools(run, sid));
+        });
+    }
+
+    /** All results of the round are saved. Ask the model again, or end the run. */
+    private void afterTools(final AgentSession run, final long sid) {
+        toolsPhase = false;
+        if (run.cancelled || sessionId != sid) {
+            streaming.setValue(false);
+            return;
+        }
+        if (run.roundsExhausted()) {
+            addNotice(sid, getApplication().getString(com.sentia.ai.app.R.string.agent_limit, run.maxRounds));
+            streaming.setValue(false);
+            return;
+        }
+        awaitingStream = true;
+        io.execute(() -> {
+            try {
+                beginAssistant(sid, run.provider, run.modelId, false);
+            } catch (Exception e) {
+                postFail(e);
+            }
+        });
+    }
+
+    /** A short message in the chat (shown like an error, with Retry). */
+    private void addNotice(final long sid, final String text) {
+        final MessageEntity m = new MessageEntity();
+        m.sessionId = sid;
+        m.role = "error";
+        m.content = text;
+        m.createdAt = System.currentTimeMillis();
+        m.status = MessageEntity.DONE;
+        io.execute(() -> {
+            m.id = db.messageDao().insert(m);
+            main.post(() -> {
+                if (sessionId != sid) return;
+                List<MessageEntity> now = new ArrayList<>(cur());
+                now.add(m);
+                setList(now);
+            });
         });
     }
 
@@ -697,6 +866,7 @@ public class ChatViewModel extends AndroidViewModel {
             }
         }
         io.shutdown();
+        toolExec.shutdown();
         super.onCleared();
     }
 }

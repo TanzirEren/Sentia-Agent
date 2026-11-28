@@ -191,6 +191,15 @@ public class SettingsActivity extends AppCompatActivity {
         }));
         toggle(R.string.set_show_hidden, R.string.set_show_hidden_sub, settings.showHiddenFiles(), (b, c) -> settings.setShowHiddenFiles(c));
 
+        // ---- Agent (Phase 2B)
+        header(R.string.sec_agent);
+        toggle(R.string.set_agent_on, R.string.set_agent_on_sub, settings.agentEnabled(), (b, c) -> settings.setAgentEnabled(c));
+        slider(getString(R.string.set_agent_rounds), SettingsStore.AGENT_ROUNDS_MIN, SettingsStore.AGENT_ROUNDS_MAX, 1f,
+                settings.agentMaxRounds(), false,
+                v -> String.format(java.util.Locale.US, "%.0f", v), (v, fromUser) -> {
+                    if (fromUser) settings.setAgentMaxRounds(Math.round(v));
+                });
+
         // ---- Developer
         header(R.string.sec_developer);
         row(getString(R.string.set_tool_tester), getString(R.string.set_tool_tester_sub), null, true,

@@ -404,6 +404,7 @@ public class MainActivity extends AppCompatActivity {
         });
         vm.streaming().observe(this, s -> {
             isStreaming = Boolean.TRUE.equals(s);
+            chatAdapter.setBusy(isStreaming);
             updateSendState();
         });
         vm.title().observe(this, t -> tvTitle.setText(t == null || t.isEmpty() ? getString(R.string.app_name) : t));
